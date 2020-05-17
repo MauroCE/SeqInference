@@ -1,0 +1,48 @@
+\documentclass[12pt,a4paper,twocolumn]{article}
+\usepackage[a4paper, portrait]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+\usepackage{graphicx}
+\usepackage{subfig}
+\graphicspath{ {./images/} }
+\usepackage{biblatex}
+\addbibresource{References.bib}
+
+\newcommand{\x}{\boldsymbol{x}}
+\newcommand{\X}{\boldsymbol{X}}
+
+\hbadness=3000
+
+\title{Sequential Monte Carlo Methods}
+\author{Andrea Becsek, Mauro Camara, Doug Corbin}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Sampling Methods}
+
+Suppose that, for some random variable $\X$ with probability density function $p$, we wish to compute the expectation
+\begin{equation}
+\label{expectation}
+\mathbb{E}[f(\X)] = \int f(\x) p(\x) \text{d}\x
+\end{equation}
+for some function $f$. In many cases, $f$ and $p$ are such that \eqref{expectation} cannot be computed analytically, therefore we must look for suitable approximations. Consider a random sample $\x_1, \ldots, \x_m$ drawn from $p$, and compute the sample mean
+\begin{equation}
+\label{sample mean}
+\bar{f}_m \coloneqq \frac{1}{m} \sum_{i = 1}^m f(\x_i) \text{.}
+\end{equation}
+From the weak law of large numbers, it follows that
+\begin{equation}
+\lim_{m \rightarrow \infty} \mathbb{P}(|\bar{f}_m - \mathbb{E}[f]| > \epsilon) = 0
+\end{equation}
+for any $\epsilon > 0 $. This result forms the basis of sampling/monte carlo methods, which approximate integrals of the form \eqref{expectation} by a discrete sum of samples drawn from $p$. In this section we cover sampling methods which are most relevant to sequential monte carlo (SMC) methods, howver a general overview of sampling methods can be found in \cite{bishop:prml}.
+
+\printbibliography
+
+\end{document}
