@@ -1,63 +1,65 @@
-library(ggplot2)
-
-## MODEL SPECIFIC FUNCTIONS:
-# Model - Binary data - Thought this would be interesting?
-
-logistic <- function(x, phi, alpha) {
-  1 / (1 + exp(- alpha - t(phi) %*% x))
+synthetic_state_space <- function(tmax, rstate, robs, x0 = 1) {
+    x <- rep(0, tmax) ; y <- rep(0, tmax)
+    x[1] <- x0 ; y[1] <- robs(x[1])
+    for (t in 1:(tmax - 1)) {
+        x[t + 1]  <- rstate(x[t])
+        y[t + 1] <- robs(x[t + 1])
+    }
+    return(data.frame("x" = x, "y" = y))
 }
 
-qsim <- function(x, theta) {
-  if (length(x) == 1) Sigma = matrix(theta, nrow = 1, ncol = 1)
-  else Sigma = diag(theta)
-  MASS::mvrnorm(1, x, Sigma)
+# Function accepts rstate() which must generate state samples, and 
+# dobs which must compute the observation density for a given state (this
+# function must be vectorized with respect to the state variable).
+bootstrap_filter <- function(y, x0, rstate, dobs, m = 100) {
+    tmax <- length(y)
+    chains <- matrix(nrow = tmax, ncol = m)
+    chains[1,] <- x0
+    for (t in 2:tmax) {
+        sampled_x <- rstate(chains[t - 1,])
+        weights <- dobs(y[t], sampled_x)
+        weights <- weights / sum(weights)
+        chains[t,] <- sample(sampled_x, m,replace = TRUE, prob = weights)
+    }
+    return(chains)
 }
 
-fsim <- function(x, phi, alpha) {
-  p <- logistic(x, phi, alpha)
-  rbinom(1, 1, p)
+# Model Proposal: Stochasitc volatility model.
+
+rstate <- function(x, a = 0.91, sd = 1) {
+    m <- length(x)
+    samples <- rep(0, m)
+    for(i in 1:m) {
+        samples[i] <- rnorm(1, a * x[i], sd)
+    }
+    return(samples)
 }
 
-## GENERIC FUNCTIONS FOR STATE SPACE MODEL:
-
-# Function looks at the current latent state (at time t) and produces a 
-# new obervation at time t + 1.
-step <- function(x, theta, phi, alpha) {
-  x1 <- qsim(x, theta)
-  y1 <- fsim(x1, phi, alpha)
-  return(c(x1, y1))
+dobs <- function(y, x, b = 0.5) {
+    m <- length(x)
+    densities <- rep(0, m)
+    for (i in 1:m) {
+        densities[i] <- dnorm(y, 0, b * exp(x[i] / 2))
+    }
+    return(densities)
 }
 
-state_model_simulation <- function(x0, qsim, fsim, theta=rep(0.01, length(x0)), 
-                                   phi=rep(1, length(x0)), alpha=0, 
-                                   Tmax=1000) {
-  
-  obs0 <- step(x0, theta, phi, alpha)
-  trajectory <- data.frame(t(obs0))
-  x <- obs0[-length(obs0)]
-  for (t in 2:Tmax) {
-    obs <- step(x, theta, phi, alpha)
-    trajectory <- rbind(trajectory, obs)
-    x <- obs[-length(obs)] # Update x
-  }
-  names <- c(paste("x", 1:length(x0), sep=""), "y")
-  colnames(trajectory) <- names
-  return(trajectory)
+robs <- function(x, b = 0.5) {
+    rnorm(1, 0, b * exp(x / 2))
 }
 
-pl_sms_1D <- function(trajectory) {
-  pl <- ggplot(data = trajectory) + 
-        geom_point(mapping = aes(x=1:nrow(trajectory), y=x1, 
-                                 col=as.character(y))) +
-        labs(color="y")
-  pl
+main <- function(tmax = 500, m = 500, a = 0.91, sd = 1) {
+    x0 <- rnorm(1, 0, sqrt(sd^2 / (1 - a^2)))
+    data <- synthetic_state_space(tmax, rstate, robs, x0)
+    plot(1:tmax, data$y, col = "red")
+    lines(1:tmax, data$x, type = "l")
+    # This assumes we start from the correct state
+    chains <- bootstrap_filter(data$y, x0, rstate, dobs, m)
+    means <- rowMeans((chains))
+    plot(data$x, means, col = "red") # Hopefully diagonal straight line.
+    abline(1, 1)
 }
 
-# Note that qsim and fsim can be changed to whatever we want.
-# data does not have to be binary.
-sim1 <- state_model_simulation(0, qsim, fsim, Tmax = 1000)
-print(head(sim1))
-pl_sms_1D(sim1)
+main()
 
-# Looking at the plots I don't know if this model is a good idea. Random walk
-# tends to drit off and produce a lot of 1's or a lot of 0's.
+
