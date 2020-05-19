@@ -1,65 +1,98 @@
-synthetic_state_space <- function(tmax, rstate, robs, x0 = 1) {
-    x <- rep(0, tmax) ; y <- rep(0, tmax)
-    x[1] <- x0 ; y[1] <- robs(x[1])
-    for (t in 1:(tmax - 1)) {
-        x[t + 1]  <- rstate(x[t])
-        y[t + 1] <- robs(x[t + 1])
-    }
-    return(data.frame("x" = x, "y" = y))
+library(methods)
+
+## OOP CLASS/GENERIC/METHOD DEFINITIONS:
+
+setClass("BootstrapFilter",
+  slots = c(
+    obs = "vector",
+    chains = "matrix",
+    num_particles = "numeric",
+    initial = "function",
+    prior_sample = "function",
+    likelihood_density = "function"
+  )         
+)
+
+BootstrapFilter <- function(inital, prior_sample, likelihood_density, num_particles = 100) {
+  new("BootstrapFilter",
+    obs = vector(),
+    chains = matrix(initial(num_particles), ncol = num_particles),
+    num_particles = num_particles,
+    initial = initial,
+    prior_sample = prior_sample,
+    likelihood_density = likelihood_density
+  )
 }
 
-# Function accepts rstate() which must generate state samples, and 
-# dobs which must compute the observation density for a given state (this
-# function must be vectorized with respect to the state variable).
-bootstrap_filter <- function(y, x0, rstate, dobs, m = 100) {
-    tmax <- length(y)
-    chains <- matrix(nrow = tmax, ncol = m)
-    chains[1,] <- x0
-    for (t in 2:tmax) {
-        sampled_x <- rstate(chains[t - 1,])
-        weights <- dobs(y[t], sampled_x)
-        weights <- weights / sum(weights)
-        chains[t,] <- sample(sampled_x, m,replace = TRUE, prob = weights)
-    }
-    return(chains)
-}
+setGeneric("chains", function(x) standardGeneric("chains"))
+setMethod("chains", "BootstrapFilter",
+  function(x) return(x@chains)
+)
 
-# Model Proposal: Stochasitc volatility model.
+setGeneric("update<-", function(x, t, value) standardGeneric("update<-"))
+setMethod("update<-", "BootstrapFilter", 
+  function(x, t, value) {
+    x@obs <- c(x@obs, value)
+    state_samples <- prior_sample(x@chains[t - 1,])
+    x@chains <- rbind(x@chains, state_samples)
+    weights <- likelihood_density(x@obs[t - 1], state_samples) # Index t - 1 to account 
+    weights <- weights / sum(weights)                  # for inital sample at time t = 0
+    resample <- sample(1:length(weights), replace = TRUE, prob = weights)
+    x@chains <- x@chains[,resample]
+    return(x)
+  }        
+)
 
-rstate <- function(x, a = 0.91, sd = 1) {
-    m <- length(x)
-    samples <- rep(0, m)
-    for(i in 1:m) {
-        samples[i] <- rnorm(1, a * x[i], sd)
-    }
-    return(samples)
-}
+## DATA GENERATING FUNCTION:
 
-dobs <- function(y, x, b = 0.5) {
-    m <- length(x)
-    densities <- rep(0, m)
-    for (i in 1:m) {
-        densities[i] <- dnorm(y, 0, b * exp(x[i] / 2))
-    }
-    return(densities)
+synthetic_state_space <- function(tmax, initial, prior_sample, robs) {
+  x <- rep(0, tmax) ; y <- rep(0, tmax)
+  x[1] <- initial(1) ; y[1] <- (x[1])
+  for (t in 1:(tmax - 1)) {
+    x[t + 1]  <- prior_sample(x[t])
+    y[t + 1] <- robs(x[t + 1])
+  }
+  return(data.frame("x" = x, "y" = y))
 }
 
 robs <- function(x, b = 0.5) {
-    rnorm(1, 0, b * exp(x / 2))
+  rnorm(1, 0, b * exp(x / 2))
 }
 
-main <- function(tmax = 5000, m = 1000, a = 0.91, sd = 1) {
-    x0 <- rnorm(1, 0, sqrt(sd^2 / (1 - a^2)))
-    data <- synthetic_state_space(tmax, rstate, robs, x0)
-    plot(1:tmax, data$y, col = "red")
-    lines(1:tmax, data$x, type = "l")
-    # This assumes we start from the correct state
-    chains <- bootstrap_filter(data$y, x0, rstate, dobs, m)
-    means <- rowMeans((chains))
-    plot(1:tmax, data$x, type = "l", col = "red") # Hopefully diagonal straight line.
-    lines(1:tmax, means, type = "l")
+initial <- function(num_particles, a = 0.91, sd = 1) {
+  rnorm(num_particles, 0, sqrt(sd^2 / (1 - a^2)))
+}
+
+prior_sample <- function(x, a = 0.91, sd = 1) {
+  num_particles <- length(x)
+  samples <- rep(0, num_particles)
+  for(i in 1:num_particles) {
+    samples[i] <- rnorm(1, a * x[i], sd)
+  }
+  return(samples)
+}
+
+likelihood_density <- function(y, x, b = 0.5) {
+  num_particles <- length(x)
+  densities <- rep(0, num_particles)
+  for (i in 1:num_particles) {
+    densities[i] <- dnorm(y, 0, b * exp(x[i] / 2))
+  }
+  return(densities)
+}
+
+## TEST IF MODEL IS PERFORMING AS EXPECTED:
+
+main <- function(tmax = 100) {
+  data <- synthetic_state_space(tmax, initial, prior_sample, robs)
+  model <- BootstrapFilter(initial, prior_sample, likelihood_density)
+  for (t in 2:tmax) {
+    update(model, t) <- data$y[t]
+  }
+  chains <- chains(model)
+  means <- rowMeans(chains)
+  plot(1:tmax, data$x, type = "l")
+  lines(1:tmax, means, type = "l", col = "red")
 }
 
 main()
-
-
