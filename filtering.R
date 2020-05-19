@@ -48,7 +48,7 @@ robs <- function(x, b = 0.5) {
     rnorm(1, 0, b * exp(x / 2))
 }
 
-main <- function(tmax = 500, m = 500, a = 0.91, sd = 1) {
+main <- function(tmax = 5000, m = 1000, a = 0.91, sd = 1) {
     x0 <- rnorm(1, 0, sqrt(sd^2 / (1 - a^2)))
     data <- synthetic_state_space(tmax, rstate, robs, x0)
     plot(1:tmax, data$y, col = "red")
@@ -56,8 +56,8 @@ main <- function(tmax = 500, m = 500, a = 0.91, sd = 1) {
     # This assumes we start from the correct state
     chains <- bootstrap_filter(data$y, x0, rstate, dobs, m)
     means <- rowMeans((chains))
-    plot(data$x, means, col = "red") # Hopefully diagonal straight line.
-    abline(1, 1)
+    plot(1:tmax, data$x, type = "l", col = "red") # Hopefully diagonal straight line.
+    lines(1:tmax, means, type = "l")
 }
 
 main()
