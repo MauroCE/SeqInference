@@ -47,7 +47,7 @@ setMethod("update<-", "BootstrapFilter",
 
 synthetic_state_space <- function(tmax, initial, prior_sample, robs) {
   x <- rep(0, tmax) ; y <- rep(0, tmax)
-  x[1] <- initial(1) ; y[1] <- (x[1])
+  x[1] <- initial(1) ; y[1] <- robs(x[1])
   for (t in 1:(tmax - 1)) {
     x[t + 1]  <- prior_sample(x[t])
     y[t + 1] <- robs(x[t + 1])
