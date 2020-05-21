@@ -10,7 +10,7 @@ setClass("BootstrapFilter",
     initial = "function",
     transition = "function",
     likelihood = "function"
-  )         
+  )
 )
 
 BootstrapFilter <- function(inital, transition, likelihood, num_particles = 100) {
@@ -25,33 +25,39 @@ BootstrapFilter <- function(inital, transition, likelihood, num_particles = 100)
 }
 
 setGeneric("chains", function(model) standardGeneric("chains"))
-setMethod("chains", "BootstrapFilter",
-  function(model) return(model@chains)
+setMethod(
+  "chains", "BootstrapFilter",
+  function(model) {
+    return(model@chains)
+  }
 )
 
 setGeneric("update<-", function(model, t, value) standardGeneric("update<-"))
-setMethod("update<-", "BootstrapFilter", 
+setMethod(
+  "update<-", "BootstrapFilter",
   function(model, t, value) {
-    model@obs <- c(model@obs, value)  # value is essentially y_t
+    model@obs <- c(model@obs, value) # value is essentially y_t
     # IMPORTANCE SAMPLING STEP
-    state_samples <- transition(model@chains[t - 1,])
+    state_samples <- transition(model@chains[t - 1, ])
     model@chains <- rbind(model@chains, state_samples)
-    weights <- likelihood(model@obs[t - 1], state_samples) # Index t - 1 to account 
-    weights <- weights / sum(weights)                  # for inital sample at time t = 0
+    weights <- likelihood(model@obs[t - 1], state_samples) # Index t - 1 to account
+    weights <- weights / sum(weights) # for inital sample at time t = 0
     # RESAMPLING
     resample <- sample(1:length(weights), replace = TRUE, prob = weights)
-    model@chains <- model@chains[,resample]
+    model@chains <- model@chains[, resample]
     return(model)
-  }        
+  }
 )
 
 ## DATA GENERATING FUNCTION:
 
 synthetic_state_space <- function(tmax, initial, transition, emission) {
-  x <- rep(0, tmax) ; y <- rep(0, tmax)
-  x[1] <- initial(1) ; y[1] <- emission(x[1])
+  x <- rep(0, tmax)
+  y <- rep(0, tmax)
+  x[1] <- initial(1)
+  y[1] <- emission(x[1])
   for (t in 1:(tmax - 1)) {
-    x[t + 1]  <- transition(x[t])
+    x[t + 1] <- transition(x[t])
     y[t + 1] <- emission(x[t + 1])
   }
   return(data.frame("x" = x, "y" = y))
@@ -65,25 +71,9 @@ initial <- function(num_particles, a = 0.91, sd = 1) {
   rnorm(num_particles, 0, sqrt(sd^2 / (1 - a^2)))
 }
 
-transition <- function(x, a = 0.91, sd = 1) {
-  num_particles <- length(x)
-  samples <- rep(0, num_particles)
-  for(i in 1:num_particles) {
-    samples[i] <- rnorm(1, a * x[i], sd)
-  }
-  # or shorter:
-  # rnorm(length(x), a*x, sd) 
-  return(samples)
-}
+transition <- function(x, a = 0.91, sd = 1) rnorm(length(x), a * x, sd)
 
-likelihood <- function(y, x, b = 0.5) {
-  num_particles <- length(x)
-  densities <- rep(0, num_particles)
-  for (i in 1:num_particles) {
-    densities[i] <- dnorm(y, 0, b * exp(x[i] / 2))
-  }
-  return(densities)
-}
+likelihood <- function(y, x, b = 0.5) dnorm(y, 0, b * exp(x / 2))
 
 ## TEST IF MODEL IS PERFORMING AS EXPECTED:
 
@@ -100,4 +90,3 @@ main <- function(tmax = 100) {
 }
 
 main()
-
