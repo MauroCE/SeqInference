@@ -8,54 +8,56 @@ setClass("BootstrapFilter",
     chains = "matrix",
     num_particles = "numeric",
     initial = "function",
-    prior_sample = "function",
-    likelihood_density = "function"
+    transition = "function",
+    likelihood = "function"
   )         
 )
 
-BootstrapFilter <- function(inital, prior_sample, likelihood_density, num_particles = 100) {
+BootstrapFilter <- function(inital, transition, likelihood, num_particles = 100) {
   new("BootstrapFilter",
     obs = vector(),
     chains = matrix(initial(num_particles), ncol = num_particles),
     num_particles = num_particles,
     initial = initial,
-    prior_sample = prior_sample,
-    likelihood_density = likelihood_density
+    transition = transition,
+    likelihood = likelihood
   )
 }
 
-setGeneric("chains", function(x) standardGeneric("chains"))
+setGeneric("chains", function(model) standardGeneric("chains"))
 setMethod("chains", "BootstrapFilter",
-  function(x) return(x@chains)
+  function(model) return(model@chains)
 )
 
-setGeneric("update<-", function(x, t, value) standardGeneric("update<-"))
+setGeneric("update<-", function(model, t, value) standardGeneric("update<-"))
 setMethod("update<-", "BootstrapFilter", 
-  function(x, t, value) {
-    x@obs <- c(x@obs, value)
-    state_samples <- prior_sample(x@chains[t - 1,])
-    x@chains <- rbind(x@chains, state_samples)
-    weights <- likelihood_density(x@obs[t - 1], state_samples) # Index t - 1 to account 
+  function(model, t, value) {
+    model@obs <- c(model@obs, value)  # value is essentially y_t
+    # IMPORTANCE SAMPLING STEP
+    state_samples <- transition(model@chains[t - 1,])
+    model@chains <- rbind(model@chains, state_samples)
+    weights <- likelihood(model@obs[t - 1], state_samples) # Index t - 1 to account 
     weights <- weights / sum(weights)                  # for inital sample at time t = 0
+    # RESAMPLING
     resample <- sample(1:length(weights), replace = TRUE, prob = weights)
-    x@chains <- x@chains[,resample]
-    return(x)
+    model@chains <- model@chains[,resample]
+    return(model)
   }        
 )
 
 ## DATA GENERATING FUNCTION:
 
-synthetic_state_space <- function(tmax, initial, prior_sample, robs) {
+synthetic_state_space <- function(tmax, initial, transition, emission) {
   x <- rep(0, tmax) ; y <- rep(0, tmax)
-  x[1] <- initial(1) ; y[1] <- robs(x[1])
+  x[1] <- initial(1) ; y[1] <- emission(x[1])
   for (t in 1:(tmax - 1)) {
-    x[t + 1]  <- prior_sample(x[t])
-    y[t + 1] <- robs(x[t + 1])
+    x[t + 1]  <- transition(x[t])
+    y[t + 1] <- emission(x[t + 1])
   }
   return(data.frame("x" = x, "y" = y))
 }
 
-robs <- function(x, b = 0.5) {
+emission <- function(x, b = 0.5) {
   rnorm(1, 0, b * exp(x / 2))
 }
 
@@ -63,16 +65,18 @@ initial <- function(num_particles, a = 0.91, sd = 1) {
   rnorm(num_particles, 0, sqrt(sd^2 / (1 - a^2)))
 }
 
-prior_sample <- function(x, a = 0.91, sd = 1) {
+transition <- function(x, a = 0.91, sd = 1) {
   num_particles <- length(x)
   samples <- rep(0, num_particles)
   for(i in 1:num_particles) {
     samples[i] <- rnorm(1, a * x[i], sd)
   }
+  # or shorter:
+  # rnorm(length(x), a*x, sd) 
   return(samples)
 }
 
-likelihood_density <- function(y, x, b = 0.5) {
+likelihood <- function(y, x, b = 0.5) {
   num_particles <- length(x)
   densities <- rep(0, num_particles)
   for (i in 1:num_particles) {
@@ -84,8 +88,8 @@ likelihood_density <- function(y, x, b = 0.5) {
 ## TEST IF MODEL IS PERFORMING AS EXPECTED:
 
 main <- function(tmax = 100) {
-  data <- synthetic_state_space(tmax, initial, prior_sample, robs)
-  model <- BootstrapFilter(initial, prior_sample, likelihood_density)
+  data <- synthetic_state_space(tmax, initial, transition, emission)
+  model <- BootstrapFilter(initial, transition, likelihood)
   for (t in 2:tmax) {
     update(model, t) <- data$y[t]
   }
@@ -96,3 +100,4 @@ main <- function(tmax = 100) {
 }
 
 main()
+
