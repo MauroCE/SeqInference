@@ -1,0 +1,44 @@
+---
+title: "stoc_volatility"
+author: "Andrea Becsek"
+date: "30/05/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Generate data
+```{r}
+alpha_true = 0.91
+sigma_true = 1
+beta_true = 0.5
+T = 500
+
+generate_sv_data <- function(alpha=alpha_true,beta=beta_true,sigma=sigma_true, n_states=T){
+  x <- rep(0,T+1)
+  y <- rep(0,T+1)
+  x[1] <- rnorm(1, mean=0, sd = sqrt(sigma^2/(1-alpha^2)))
+  y[1] <- NA
+  for(t in 2:(T+1)){
+    x[t] <- rnorm(1,mean=alpha*x[t-1],sd=sigma)
+    y[t] <- rnorm(1, mean=0, sd=beta*exp(x[t]/2))
+  }
+  return(list(x=x,y=y))
+}
+
+x <- generate_sv_data()$x
+y <- generate_sv_data()$y
+plot(y)
+lines(x)
+```
+
+```{r}
+theta <- c(alpha_true,beta_true,sigma_true)
+sourceCpp("SV.cpp")
+output_mine <- ap_filter_sv(y, theta, n_particles)
+plot(x[-1],type='l')
+lines(output_mine,col='red')
+```
+

@@ -119,3 +119,11 @@ def generate_data(t_max=100):
 x, y = generate_data()
 
 
+# ALGORITHM
+N = 100 # number of particles
+
+# SAMPLE X AND THETA FROM THE PRIOR
+x_samples = initial_sampler(N)
+# THETA=BETA, WHERE THE TRUE BETA IS 0.5
+theta_samples = np.random.normal(loc=0.5, scale=0.1, size=N)
+# RESAMPLE
