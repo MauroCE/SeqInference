@@ -4,6 +4,7 @@
 //#include <cmath>
 using namespace Rcpp;
 
+// FUNCTION THAT APPLIES DNORM TO A COLUMN OF STANDARD DEVIATIONS
 // [[Rcpp::export]]
 arma::vec vec_dnorm(double x, double means, arma::vec sd) {
   int n = sd.size();
@@ -17,7 +18,7 @@ arma::vec vec_dnorm(double x, double means, arma::vec sd) {
 //[[Rcpp::export(name = "ap_filter_sv")]]
 arma::mat particle_filter(arma::vec &y, arma::vec &theta, int &n_particles) {
 
-  int T = y.size() - 1;
+  int T = y.size() - 1; // WE ASSUME THAT THE FIRST ELEMENT OF Y IS NA
   double alpha = theta[0];
   double beta = theta[1];
   double sigma = theta[2];
@@ -35,20 +36,17 @@ arma::mat particle_filter(arma::vec &y, arma::vec &theta, int &n_particles) {
 
   double log_likelihood = 0;
 
-  // INITIALIZE STATE
+  // INITIALIZE PRIOR STATE
   NumericVector initial_particles(n_particles);
-  initial_particles =
-      rnorm(n_particles, 0, sqrt(pow(sigma, 2) / (1 - pow(alpha, 2))));
+  initial_particles = rnorm(n_particles, 0, sigma / sqrt (1 - pow(alpha, 2)));
   particles.col(0) = as<arma::Col<double>>(initial_particles);
-
-  // particles.col(0) = init_state * arma::ones<arma::vec>(n_particles);
   x_hat_filtered(0) = mean(particles.col(0));
+  
+  
   for (int t = 1; t <= T; t++) {
 
     // RESAMPLE USING MULTINOMIAL
-
-    weights_1 =
-        vec_dnorm(y(t), 0, beta * arma::exp(alpha * particles.col(t - 1) / 2));
+    weights_1 = vec_dnorm(y(t), 0, beta * arma::exp(alpha * particles.col(t - 1) / 2));
     double weights_1_sum = accu(weights_1);
     weights_1_norm = weights_1 / weights_1_sum;
     NumericVector resampled_particles =
@@ -65,7 +63,7 @@ arma::mat particle_filter(arma::vec &y, arma::vec &theta, int &n_particles) {
     particles.col(t) = as<arma::Col<double>>(new_particles);
 
     // COMPUTE NEW WEIGHTS
-    weights_2 = vec_dnorm(y(t), 0, beta * arma::exp(particles.col(t) / 2));
+    weights_2 = vec_dnorm(y(t), 0, beta * arma::exp(particles.col(t) / 2)); 
     double weights_2_sum = accu(weights_2);
     weights_2_norm = weights_2 / weights_2_sum;
 
@@ -77,6 +75,9 @@ arma::mat particle_filter(arma::vec &y, arma::vec &theta, int &n_particles) {
 
     // ESTIMATE STATE
     x_hat_filtered(t) = mean(particles.col(t));
+
+    // ESTIMATE LOG-LIKELIHOOD
+    log_likelihood = log_likelihood + log(weights_2_sum);
   }
   return x_hat_filtered;
 }
