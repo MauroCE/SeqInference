@@ -1,3 +1,4 @@
+library(SMC)
 stochastic_volatility <- function(nobs, param) {
   x <- rep(0, nobs)
   y <- rep(0, nobs)

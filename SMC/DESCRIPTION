@@ -1,0 +1,14 @@
+Package: SMC
+Type: Package
+Title: Sequential Monte Carlo Simulations
+Version: 1.0
+Date: 2020-06-03
+Author: Andrea Becsek, Mauro Camara 
+Maintainer: Douglas Corbin <doug.corbin@bristol.ac.uk>
+Description: Package containing functions which implement various SMC related
+  algorithms e.g. Bootstrap particle filter, particle marginal metropolis-hastings...
+License: GPL (>= 2)
+Imports: Rcpp (>= 1.0.4.6)
+LinkingTo: Rcpp, RcppArmadillo
+RoxygenNote: 7.0.2
+Encoding: UTF-8
