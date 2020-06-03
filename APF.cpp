@@ -30,14 +30,14 @@ class SS_Model {
     
     void transition(int t) {
       rowvec propagate(this->_num_particles);
-      rowvec curr_particles = this->_particles.row(t);
+      rowvec curr_particles = this->_particles.row(t - 1);
       double mean, sd;
       for (int i = 0; i < this->_num_particles; ++i) {
         mean = this->_param(0) * curr_particles(i);
         sd = sqrt(this->_param(2));
         propagate(i) = Rcpp::rnorm(1, mean, sd)[0];
       }
-      this->_particles.row(t + 1) = propagate;
+      this->_particles.row(t) = propagate;
     }
     
     uvec resample(int t, vec weights) {
@@ -50,14 +50,26 @@ class SS_Model {
       return resam;
     }
     
-    vec particle_likelihood(int t, double obs) { 
-      Rcpp::NumericVector obsv(1); obsv[0] = obs;
-      rowvec curr_particles = this->_particles.row(t);
+    vec aux_likelihoodhood(int t, double obs) { 
+      Rcpp::NumericVector obsv(1); obsv[0] = obs; // Convert obs to vector.
+      rowvec curr_particles = this->_particles.row(t - 1);
       vec lik(this->_num_particles);
-      double mean, state_mean, lik_sd;
+      double state_mean, lik_sd;
       for (int i = 0; i < this->_num_particles; ++i) {
         state_mean = this->_param(0) * curr_particles(i);
         lik_sd = this->_param(1) * exp(state_mean / 2);
+        lik(i) = Rcpp::dnorm(obsv, 0.0, lik_sd)[0];
+      }
+      return lik;
+    }
+    
+    vec likelihood(int t, double obs) {
+      Rcpp::NumericVector obsv(1); obsv[0] = obs; // Convert obs to vector.
+      rowvec curr_particles = this->_particles.row(t);
+      vec lik(this->_num_particles);
+      double lik_sd;
+      for (int i = 0; i < this->_num_particles; ++i) {
+        lik_sd = this->_param(1) * exp(curr_particles(i) / 2);
         lik(i) = Rcpp::dnorm(obsv, 0.0, lik_sd)[0];
       }
       return lik;
@@ -70,6 +82,8 @@ class SS_Model {
       }
       return filtered;
     }
+    
+    
     
 };
 
@@ -99,21 +113,22 @@ vec update_weights(vec weights, vec parent_weights, vec lik) {
 mat APF(colvec obs, int num_particles, vec param) {
   // INITIALISATION: (not sure if this is right...)
   SS_Model model(obs, num_particles, param);
-  vec weights = normalize(model.particle_likelihood(0, obs(0)));
-  uvec resampled = model.resample(0, weights);
-  weights = normalize(weights.elem(resampled));
+  vec weights = normalize(model.aux_likelihoodhood(1, obs(1)));
   
   // MAIN ITERATION:
   int tmax = obs.n_elem;
-  vec lik, parent_weights;
+  vec lik, aux_lik, parent_weights;
+  uvec resampled;
   for (int t = 1; t < tmax; ++t) {
-    model.transition(t - 1);
-    lik = model.particle_likelihood(t, obs(t));
-    parent_weights = normalize(elem_mult(weights, lik));
-    resampled = model.resample(t, parent_weights);
-    parent_weights = normalize(parent_weights.elem(resampled));
-    weights = normalize(weights.elem(resampled));
+    aux_lik = model.aux_likelihoodhood(t, obs(t));
+    parent_weights = normalize(elem_mult(weights, aux_lik));
+    resampled = model.resample(t - 1, parent_weights);
+    parent_weights = parent_weights.elem(resampled);
+    weights = weights.elem(resampled);
+    model.transition(t);
+    lik = model.likelihood(t, obs(t));
     weights = update_weights(weights, parent_weights, lik);
+    weights = normalize(weights);
   }
 
   return model.filtered_states(weights);
