@@ -101,7 +101,7 @@ mat APF(colvec obs, int num_particles, vec param) {
   SS_Model model(obs, num_particles, param);
   vec weights = normalize(model.particle_likelihood(0, obs(0)));
   uvec resampled = model.resample(0, weights);
-  weights = weights.elem(resampled);
+  weights = normalize(weights.elem(resampled));
   
   // MAIN ITERATION:
   int tmax = obs.n_elem;
@@ -111,12 +111,10 @@ mat APF(colvec obs, int num_particles, vec param) {
     lik = model.particle_likelihood(t, obs(t));
     parent_weights = normalize(elem_mult(weights, lik));
     resampled = model.resample(t, parent_weights);
-    parent_weights = parent_weights.elem(resampled);
-    weights = weights.elem(resampled);
+    parent_weights = normalize(parent_weights.elem(resampled));
+    weights = normalize(weights.elem(resampled));
     weights = update_weights(weights, parent_weights, lik);
   }
-  
-  // COMPUTE WEIGHTED SUM OF COLUMNS:
 
   return model.filtered_states(weights);
 }

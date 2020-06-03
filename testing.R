@@ -14,5 +14,5 @@ sim_data <- function(nobs, param) {
 dat <- sim_data(500, c(0.91, 0.5, 1))
 plot(dat$states, type = "l")
 
-filter <- APF(dat$obs, 1000, c(0.91, 0.5, 1))
+filter <- APF(dat$obs, 300, c(0.91, 0.5, 1))
 lines(filter, col = "blue")
