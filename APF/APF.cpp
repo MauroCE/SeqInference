@@ -40,6 +40,14 @@ class SS_Model {
       this->_particles.row(t) = propagate;
     }
     
+    colvec sample(vec weights) {
+      Rcpp::NumericVector to_sample, probs;
+      to_sample = linspace(0, this->_num_particles - 1, this->_num_particles);
+      probs = Rcpp::wrap(weights);
+      int sampled_index = Rcpp::sample(to_sample, 1, false, probs)[0];
+      return this->_particles.col(sampled_index);
+    }
+    
     uvec resample(int t, vec weights) {
       Rcpp::NumericVector to_sample, resampled, probs;
       to_sample = linspace(0, this->_num_particles - 1, this->_num_particles);
@@ -83,8 +91,6 @@ class SS_Model {
       return filtered;
     }
     
-    
-    
 };
 
 vec elem_mult(vec a, vec b) {
@@ -110,7 +116,14 @@ vec update_weights(vec weights, vec parent_weights, vec lik) {
   return normalize(updated);
 }
 
-mat APF(colvec obs, int num_particles, vec param) {
+double log_marginal(vec weights, vec aux_lik) { // Not the full marginal !!
+  vec weights_norm = normalize(weights);
+  double weight_mean = mean(weights);
+  double aux_lik_mean = accu(elem_mult(weights_norm, aux_lik));
+  return log(weight_mean * aux_lik_mean);
+}
+
+Rcpp::List APF(colvec obs, int num_particles, vec param) {
   // INITIALISATION: (not sure if this is right...)
   SS_Model model(obs, num_particles, param);
   vec weights = normalize(model.aux_likelihoodhood(1, obs(1)));
@@ -119,8 +132,10 @@ mat APF(colvec obs, int num_particles, vec param) {
   int tmax = obs.n_elem;
   vec lik, aux_lik, parent_weights;
   uvec resampled;
+  double full_log_marginal = 0.0;
   for (int t = 1; t < tmax; ++t) {
     aux_lik = model.aux_likelihoodhood(t, obs(t));
+    full_log_marginal += log_marginal(weights, aux_lik);
     parent_weights = normalize(elem_mult(weights, aux_lik));
     resampled = model.resample(t - 1, parent_weights);
     parent_weights = parent_weights.elem(resampled);
@@ -130,11 +145,14 @@ mat APF(colvec obs, int num_particles, vec param) {
     weights = update_weights(weights, parent_weights, lik);
     weights = normalize(weights);
   }
-  return model.filtered_states(weights);
+  colvec sampled_particle = model.sample(weights);
+  colvec filtered = model.filtered_states(weights);
+  return Rcpp::List::create(Rcpp::Named("sample") = sampled_particle,
+                            Rcpp::Named("log_marginal") = full_log_marginal,
+                            Rcpp::Named("filtered_states") = filtered);
 }
 
 // [[Rcpp::export(name = "APF")]]
-mat APF_r(colvec obs, int num_particles, vec param) {
-  mat particles = APF(obs, num_particles, param);
-  return particles;
+Rcpp::List APF_r(colvec obs, int num_particles, vec param) {
+  return APF(obs, num_particles, param);
 }
