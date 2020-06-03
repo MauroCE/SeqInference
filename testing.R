@@ -11,9 +11,8 @@ sim_data <- function(nobs, param) {
   return(data.frame(states = states, obs = obs))
 }
 
-dat <- sim_data(1000, c(0.91, 0.5, 1))
+dat <- sim_data(500, c(0.91, 0.5, 1))
 plot(dat$states, type = "l")
-points(dat$obs, col = "red")
 
-filter <- APF(dat$obs, 5, c(0.91, 0.5, 1))
-
+filter <- APF(dat$obs, 1000, c(0.91, 0.5, 1))
+lines(filter, col = "blue")

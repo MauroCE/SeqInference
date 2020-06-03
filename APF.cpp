@@ -40,13 +40,14 @@ class SS_Model {
       this->_particles.row(t + 1) = propagate;
     }
     
-    void resample(int t, vec weights) {
+    uvec resample(int t, vec weights) {
       Rcpp::NumericVector to_sample, resampled, probs;
-      to_sample = Rcpp::wrap(this->_particles.row(t));
+      to_sample = linspace(0, this->_num_particles - 1, this->_num_particles);
       probs = Rcpp::wrap(weights);
       resampled = Rcpp::sample(to_sample, this->_num_particles, true, probs);
-      arma::rowvec resam = Rcpp::as<rowvec>(resampled);
-      this->_particles.row(t) = resam;
+      uvec resam = Rcpp::as<uvec>(resampled);
+      this->_particles = this->_particles.cols(resam);
+      return resam;
     }
     
     vec particle_likelihood(int t, double obs) { 
@@ -62,6 +63,14 @@ class SS_Model {
       return lik;
     }
     
+    colvec filtered_states(vec weights) {
+      colvec filtered(this->_particles.n_rows);
+      for (int i = 0; i < this->_particles.n_cols; ++i) {
+        filtered = filtered + weights[i] * this->_particles.col(i);
+      }
+      return filtered;
+    }
+    
 };
 
 vec elem_mult(vec a, vec b) {
@@ -73,38 +82,43 @@ vec elem_mult(vec a, vec b) {
   return out;
 }
 
+vec normalize(vec v) {
+  double total = accu(v);
+  return v / total;
+}
+
 vec update_weights(vec weights, vec parent_weights, vec lik) {
   int n = weights.n_elem;
   vec updated(n);
   for (int i = 0; i < n; ++i) {
     updated(i) = weights(i) / parent_weights(i) * lik(i);
   }
-  return normalise(updated);
+  return normalize(updated);
 }
 
 mat APF(colvec obs, int num_particles, vec param) {
-  // INITIALISATION:
+  // INITIALISATION: (not sure if this is right...)
   SS_Model model(obs, num_particles, param);
-  vec weights = ones(num_particles); 
-  weights = weights / weights.n_elem;
-  vec lik = model.particle_likelihood(0, obs(0));
-  vec parent_weights = normalise(elem_mult(weights, lik));
-  model.resample(0, parent_weights);
-  weights = update_weights(weights, parent_weights, lik);
+  vec weights = normalize(model.particle_likelihood(0, obs(0)));
+  uvec resampled = model.resample(0, weights);
+  weights = weights.elem(resampled);
   
   // MAIN ITERATION:
   int tmax = obs.n_elem;
+  vec lik, parent_weights;
   for (int t = 1; t < tmax; ++t) {
     model.transition(t - 1);
     lik = model.particle_likelihood(t, obs(t));
-    Rcpp::Rcout << "lik: " << lik << std::endl;
-    parent_weights = normalise(elem_mult(weights, lik));
-    Rcpp::Rcout << "parent: " << parent_weights << std::endl;
-    model.resample(t, parent_weights);
+    parent_weights = normalize(elem_mult(weights, lik));
+    resampled = model.resample(t, parent_weights);
+    parent_weights = parent_weights.elem(resampled);
+    weights = weights.elem(resampled);
     weights = update_weights(weights, parent_weights, lik);
-    Rcpp::Rcout << "weights: " << weights << std::endl;
   }
-  return model.getParticles();
+  
+  // COMPUTE WEIGHTED SUM OF COLUMNS:
+
+  return model.filtered_states(weights);
 }
 
 // [[Rcpp::export(name = "APF")]]
