@@ -78,7 +78,7 @@ class SS_Model {
     colvec filtered_states(vec weights) {
       colvec filtered(this->_particles.n_rows);
       for (int i = 0; i < this->_particles.n_cols; ++i) {
-        filtered = filtered + weights[i] * this->_particles.col(i);
+        filtered = filtered + weights(i) * this->_particles.col(i);
       }
       return filtered;
     }
@@ -130,7 +130,6 @@ mat APF(colvec obs, int num_particles, vec param) {
     weights = update_weights(weights, parent_weights, lik);
     weights = normalize(weights);
   }
-
   return model.filtered_states(weights);
 }
 
