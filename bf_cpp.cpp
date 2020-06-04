@@ -12,7 +12,7 @@ NumericVector likelihood(double y, NumericVector x, double beta){
   int n = x.size();
   NumericVector like(n);
   for (int i=0; i < n; i++){
-    like[i] = R::dnorm(y, 0.0, beta*exp(x[i]/2), false);
+    like[i] = R::dnorm(y, 0.0, beta*exp(x[i]/2), true);
   }
   return like;
 }
@@ -31,6 +31,7 @@ List bf_cpp(NumericVector y, int N, double beta) {
   NumericVector weights(N);
   IntegerVector ix(N);
   double log_marginal = 0.0;
+  double maxw, sumweights;
   // First iteration
   particles.row(0) = prior(N);
   // Main loop
@@ -38,10 +39,16 @@ List bf_cpp(NumericVector y, int N, double beta) {
     // Sample from the prior and calculate (normalized) weights 
     particles.row(t) = transition(particles.row(t-1));
     weights = likelihood(y[t], particles.row(t), beta);
+    // log sum exp
+    maxw = max(weights);
+    weights = exp(weights - maxw);
+    sumweights = sum(weights);
+    weights = weights / sumweights;
+    log_marginal += maxw + log(sumweights) - log(N);
     // Use likelihood to compute the marginal likelihood
-    log_marginal += log(mean(weights));
+    //log_marginal += log(mean(weights));
     // Normalize weights
-    weights = weights / sum(weights);
+    //weights = weights / sum(weights);
     // Sample indices based on weights and use them to resample the columns of particle
     ix = sample(N, N, true, weights);
     for (int j=0; j < N; j++){
@@ -82,11 +89,11 @@ double logqeval(double thetastar, double thetagiven){
 }
 
 // [[Rcpp::export(name="pmmh_cpp_bf")]]
-List pmmh(double thetastart, int niter, int N, NumericVector y) {  // N is the number of particles
+List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin){  // N is the number of particles
 
   // INITIALIZATION: Run APF and grab sample & log marginal, then set starting param
   List out = bf_cpp(y, N, thetastart); // Run APF
-  NumericVector x = out["sample"];             // Grab a sample from posterior
+  NumericVector x = out["filtered_states"];             // Grab a sample from posterior
   double logm = out["log_marginal"];  // Grab log marginal
   double theta = thetastart;           // Set initial parameter
   NumericVector logu = log(runif(N));             // Generate log() of uniform random numbers
@@ -96,6 +103,23 @@ List pmmh(double thetastart, int niter, int N, NumericVector y) {  // N is the n
   double theta_candidate;
   double logm_candidate;
   NumericVector x_candidate;
+  
+  // BURN IN
+  for (int i=0; i < burnin; i++){
+    // Sample theta* from q(theta* | theta)
+    theta_candidate = q(theta);
+    // Sample a candidate by running APF. Extract sample and log marginal
+    out = bf_cpp(y, N, theta_candidate);
+    x_candidate = out["sample"];
+    logm_candidate = out["log_marginal"];
+    // Compute acceptance ratio
+    if (logu[i] <= logm_candidate + logp(theta_candidate) - logm - logp(theta)){
+      // Accept!
+      theta = theta_candidate;
+      x = x_candidate;
+      logm = logm_candidate;
+    }
+  }
   
   // MAIN LOOP
   for (int i=0; i < niter; i++){
