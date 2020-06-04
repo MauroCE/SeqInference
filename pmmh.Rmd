@@ -27,11 +27,11 @@ likelihood_function <- function(y, x, beta) dnorm(x=y, mean=0, sd=abs(beta*exp(x
 
 ### Data Generation
 ```{r}
-set.seed(123)
+set.seed(192837465)    #123
 alpha <- 0.91
 sigma <- 1.0
 beta  <- 0.5
-tmax <- 100
+tmax <- 500
 data <- matrix(0, nrow=(tmax+1), ncol=2)
 data[1, 1] <- prior_function(n=1)
 data[1, 2] <- emission_function(data[1, 1], beta)
@@ -186,15 +186,78 @@ plot(samples, type='l')
 
 
 
+```{r}
+sourceCpp("APF/APF.cpp")
+```
+
+```{r}
+length(data[, 2])
+```
+
+
+```{r}
+out <- APF(data[, 2], 300, c(0.8281, 0.5, 1.0))
+plot(out$filtered_states, col='red', type='l')
+```
+
+
+```{r, fig.heigh=3, fig.heigh=3}
+plot(data[, 1], type="l")
+```
 
 
 
 
+```{r}
+sourceCpp("pmmh.cpp")
+```
+
+```{r}
+out <- pmmh_cpp(0.5, 500, 300, data[, 2])
+```
+
+```{r}
+out$acceptance
+```
+
+```{r}
+plot(out$samples, type='l')
+```
 
 
 
+```{r}
+sourceCpp("bf_cpp.cpp")
+out <- bf_cpp(data[, 2], 300, 0.5)
+plot(data[, 1], type="l")
+lines(out$filtered_states, col='red')
+```
 
 
+```{r}
+out <- pmmh_cpp_bf(thetastart = 1.0, 
+                   niter=5000, 
+                   N=500, 
+                   y=data[, 2],
+                   burnin=2500)
+```
 
+
+```{r}
+out$acceptance
+```
+
+```{r}
+plot(out$samples, type='l')
+```
+
+```{r}
+n <- length(out$samples) * 0.7
+mean(out$samples[-(1:n)])
+```
+
+```{r}
+out$samples[]
+```
 
 
