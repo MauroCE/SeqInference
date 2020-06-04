@@ -112,7 +112,7 @@ vec update_weights(vec weights, vec parent_weights, vec lik) {
   int n = weights.n_elem;
   vec updated(n);
   for (int i = 0; i < n; ++i) {
-    updated(i) = weights(i) / parent_weights(i) * lik(i);
+    updated(i) = (weights(i) / parent_weights(i)) * lik(i);
   }
   return normalize(updated);
 }
@@ -121,7 +121,7 @@ double log_marginal(vec weights, vec aux_lik) { // Not the full marginal !!
   vec weights_norm = normalize(weights);
   double weight_mean = mean(weights);
   double aux_lik_mean = accu(elem_mult(weights_norm, aux_lik));
-  return log(weight_mean * aux_lik_mean);
+  return log(weight_mean) + log(aux_lik_mean);
 }
 
 Rcpp::List APF(colvec obs, int num_particles, vec param) {
