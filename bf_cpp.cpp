@@ -28,36 +28,33 @@ List bf_cpp(NumericVector y, int N, double beta) {
   NumericMatrix particles(tmax+1, N);
   NumericMatrix resampled(tmax+1, N);
   NumericMatrix posterior_sample(tmax+1, N);  // Sample from the final posterior. Used by PMMH
-  NumericVector weights(N);
+  NumericMatrix logweights(tmax+1, N);
+  NumericMatrix weightsnorm(tmax+1, N);
   IntegerVector ix(N);
   double log_marginal = 0.0;
-  double maxw, sumweights;
+  double maxlogw, sumweights;
   // First iteration
   particles.row(0) = prior(N);
   // Main loop
   for (int t=1; t < (tmax+1); t++){
     // Sample from the prior and calculate (normalized) weights 
     particles.row(t) = transition(particles.row(t-1));
-    weights = likelihood(y[t], particles.row(t), beta);
-    // log sum exp
-    maxw = max(weights);
-    weights = exp(weights - maxw);
-    sumweights = sum(weights);
-    weights = weights / sumweights;
-    log_marginal += maxw + log(sumweights) - log(N);
-    // Use likelihood to compute the marginal likelihood
-    //log_marginal += log(mean(weights));
-    // Normalize weights
-    //weights = weights / sum(weights);
+    logweights.row(t) = likelihood(y[t], particles.row(t), beta);
+    // log sum exp to find wait and likelihood
+    maxlogw = max(logweights.row(t));
+    logweights.row(t) = exp(logweights.row(t) - maxlogw);
+    sumweights = sum(logweights.row(t));
+    weightsnorm.row(t) = logweights.row(t) / sumweights;
+    log_marginal += maxlogw + log(sumweights) - log(N);
     // Sample indices based on weights and use them to resample the columns of particle
-    ix = sample(N, N, true, weights);
+    ix = sample(N, N, true, (NumericVector)weightsnorm.row(t));
     for (int j=0; j < N; j++){
       resampled.column(j) = particles.column(ix[j]-1);
     }
     particles = resampled;
   }
   // Sample one last time from the particles
-  ix = sample(N, N, true, weights);
+  ix = sample(N, N, true, (NumericVector)weightsnorm.row(tmax));
   for (int j=0; j < N; j++){
     posterior_sample.column(j) = particles.column(ix[j]-1);
   }
@@ -73,19 +70,19 @@ List bf_cpp(NumericVector y, int N, double beta) {
 // Sample theta propposal q(theta* | theta) In our case theta is beta. 
 // [[Rcpp::export(name="q")]]
 double q(double thetagiven){
-  return R::rnorm(thetagiven, 0.1);
+  return R::rnorm(thetagiven, 2.0);
 }
 
 // Prior for theta. Evaluates prior density
 // [[Rcpp::export(name="logp")]]
 double logp(double theta){
-  return R::dnorm(theta, 1.0, 0.2, true);
+  return R::dnorm(theta, 3.0, 2.0, true);
 }
 
 // Evaluates q(theta*|theta)
 // [[Rcpp::export(name="logqeval")]]
 double logqeval(double thetastar, double thetagiven){
-  return R::dnorm(thetastar, thetagiven, 0.1, true);
+  return R::dnorm(thetastar, thetagiven, 2.0, true);
 }
 
 // [[Rcpp::export(name="pmmh_cpp_bf")]]
