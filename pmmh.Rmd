@@ -5,40 +5,47 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(Rcpp)
+library(ggplot2)
 ```
 
 # Bootstrap Filter in R (Stochastic Volatility)
 
 ### Prior Distribution
 ```{r}
-prior_function <- function(n=1) rnorm(n, 0.0, sigma / sqrt((1 - alpha^2)))
+prior_function <- function(n=1, alpha, sigma) rnorm(n, 0.0, sigma / sqrt((1 - alpha^2)))
 ```
 
 ### Transition Function
 ```{r}
-transition_function <- function(x, n=1) rnorm(n, mean=alpha*x, sd=sigma)
+transition_function <- function(x, n=1, alpha) rnorm(n, mean=alpha*x, sd=sigma)
 ```
 
 ### Emission Function and Likelihood Function
 ```{r}
 emission_function <- function(x, beta) rnorm(n=1, mean=0, sd=beta*exp(x/2))
+
 likelihood_function <- function(y, x, beta) dnorm(x=y, mean=0, sd=beta*exp(x/2))
 ```
 
 ### Data Generation
 ```{r}
 set.seed(192837465)    #123
-alpha <- 0.91
-sigma <- 1.0
-beta  <- 10
+alpha_true <- 0.91
+sigma_true <- 1.0
+beta_true  <- 10
 tmax <- 500
 data <- matrix(0, nrow=(tmax+1), ncol=2)
-data[1, 1] <- prior_function(n=1)
-data[1, 2] <- emission_function(data[1, 1], beta)
+data[1, 1] <- prior_function(n=1,alpha = alpha_true, sigma = sigma_true)
+data[1, 2] <- emission_function(data[1, 1], beta = beta_true)
 for (i in 2:(tmax+1)){
-  data[i, 1] <- transition_function(data[i-1, 1])
-  data[i, 2] <- emission_function(data[i, 1], beta)
+  data[i, 1] <- transition_function(data[i-1, 1], alpha = alpha_true)
+  data[i, 2] <- emission_function(data[i, 1], beta = beta_true)
 }
+
+## x and y without the initial values
+y <- data[-1, 2]
+
 plot(1:(tmax+1), data[, 1], type='l', main='Hidden State', xlab='t', ylab='x')
 ```
 
@@ -49,205 +56,40 @@ plot(1:(tmax+1), data[, 2], type='l', main='Observations', xlab='t', ylab='x')
 
 
 ### Bootstrap Filter Settings
-```{r}
-N <- 500
-y <- data[, 2]
-```
-
-### Bootstrap Filter Example Function
-```{r}
-bf <- function(beta, N=100){
-  # Store the marginal approximation
-  marginal <- 1.0
-  # Initialize particles
-  particles <- matrix(0, nrow=(tmax+1), ncol=N)
-  particles[1, ] <- prior_function(n=N)
-  # Main Bootstrap Filter Loop
-  for (t in 2:(tmax+1)){
-    # Sample from transition
-    particles[t, ] <- transition_function(particles[t-1, ], N)
-    # Compute importance weights
-    weights <- likelihood_function(y[t], particles[t, ], beta)
-    # Update the marginal approximation
-    marginal <- marginal * mean(weights)
-    # Normalize weights
-    weights <- weights / sum(weights)
-    # Resample
-    resampled_ix <- sample(1:N, N, replace=TRUE, prob=weights)
-    # Select particles based on resampled indices
-    particles <- particles[, resampled_ix]
-  }
-  return(list(x=particles, w=weights, m=marginal))
-}
-```
-
-```{r}
-bf2 <- function(beta, N=100){
-  # Store estimate of the marginal?
-  marginal <- 1.0
-  # Initialize particles
-  particles <- matrix(0, nrow=(tmax+1), ncol=N)
-  particles[1, ] <- prior_function(n=N)
-  # Weights (uniform)
-  weights <- rep(1/N, N)
-  # Main Bootstrap Filter Loop
-  for (t in 1:tmax){
-    # Resample first
-    particles <- particles[, sample(1:N, N, replace = TRUE, prob=weights)]
-    # Propagate forward
-    particles[t+1, ] <- transition_function(particles[t, ], N)
-    # Compute importance weights
-    weights <- likelihood_function(y[t+1], particles[t+1, ], beta)
-    # Update the marginal estimation
-    marginal <- marginal * mean(weights)
-    # Normalize weights
-    weights <- weights / sum(weights)
-  }
-  return(list(x=particles, w=weights, m=marginal))
-} 
-```
-
-
-### Applying Bootstrap Filter
-```{r}
-out <- bf(beta=beta)
-out2 <- bf2(beta=beta)
-means <- apply(out$x, 1, mean)
-means2 <- apply(out2$x, 1, mean)
-plot(1:(tmax+1), data[, 1], type='l', main='Hidden State', xlab='t', ylab='x')
-lines(1:(tmax+1), means, col='red')
-lines(1:(tmax+1), means2, col='blue')
-```
-
-# Particle Marginal Metropolis-Hastings
-
-```{r}
-pmmh <- function(q, p, qeval, start=1.0, niter=100, N=100){
-  ### INITIALIZATION
-  # Run SMC targeting posterior
-  out <- bf(start, N)
-  # sample from the posterior
-  ix <- sample(1:N, N, replace=T, prob=out$w)
-  x  <- out$x[, ix]
-  # Grab approximation to the marginal
-  m <- out$m
-  # set current param to the start
-  theta <- start
-  # compute uniform random numbers to accept
-  u <- runif(niter)
-  # store the samples
-  samples <- rep(0, niter+1)
-  samples[1] <- theta
-  
-  ### MAIN LOOP
-  for (i in 1:niter){
-    # Sample theta* ~ q(theta* | theta)
-    theta_candidate <- q(theta)
-    # Run SMC 
-    out <- bf(theta_candidate, N)
-    # Sample from it
-    ix <- sample(1:N, N, replace=T, prob=out$w)
-    x_candidate <- out$x[, ix]
-    # Grab approximation to marginal
-    m_candidate <- out$m
-    # Compute acceptance ratio
-    prob <- min(1, m_candidate*p(theta_candidate)*qeval(theta, theta_candidate) / m*p(theta)*qeval(theta_candidate, theta))
-    # accept?
-    if (u[i] <= prob){
-      theta <- theta_candidate
-      x <- x_candidate
-      m <- m_candidate
-    }
-    samples[i+1] <- theta
-  }
-  # finally return the chain
-  return(samples)
-}
-```
-
-Run PMMH using the following settings
-
-```{r}
-q <- function(theta) rnorm(n=1, mean=theta, sd=0.2)
-qeval <- function(theta_to_eval, theta_given) dnorm(x=theta_to_eval, mean=theta_given, sd=0.2)
-p <- function(theta) dnorm(x=theta, mean=1.0, sd=0.2)
-start <- 1.0
-```
 
 
 ```{r}
-samples <- pmmh(q=q, p=p, qeval=qeval, start=1.0, niter=5000, N=N)
-```
-
-```{r}
-mean(samples)
-```
-
-
-```{r}
-plot(samples, type='l')
-```
-
-
-
-
-```{r}
-sourceCpp("APF/APF.cpp")
-```
-
-```{r}
-length(data[, 2])
-```
-
-
-```{r}
-out <- APF(data[, 2], 300, c(0.8281, 0.5, 1.0))
-plot(out$filtered_states, col='red', type='l')
-```
-
-
-```{r, fig.heigh=3, fig.heigh=3}
-plot(data[, 1], type="l")
-```
-
-
-
-
-```{r}
-sourceCpp("pmmh.cpp")
-```
-
-```{r}
-out <- pmmh_cpp(0.5, 500, 300, data[, 2])
-```
-
-```{r}
-out$acceptance
-```
-
-```{r}
-plot(out$samples, type='l')
-```
-
-
-
-```{r}
-library(Rcpp)
 ix = 1:200
 sourceCpp("bf_cpp.cpp")
-out <- bf_cpp(data[ix, 2], 300, 10)
+out <- bf_cpp(data[ix, 2], 300, beta=beta_true, alpha = alpha_true, sigma=sigma_true)
 plot(data[ix, 1], type="l")
 lines(out$filtered_states, col='red')
 ```
 
 
 ```{r}
-out <- pmmh_cpp_bf(thetastart = 5.0, 
+sourceCpp("bf_cpp.cpp")
+N <- 200
+out <- pmmh_cpp_bf(thetastart = 0.8, 
                    niter=700, 
-                   N=200, 
-                   y=data[, 2],
-                   burnin=100)
+                   N=N, 
+                   y=y,
+                   burnin=100,
+                   beta = beta_true,
+                   sigma = sigma_true)
 ```
+
+
+```{r}
+oo = pr(N, 0.8, sigma_true)
+tr(oo, 0.8, sigma_true)
+```
+
+
+```{r}
+bf_cpp(y = y, N = N, beta = beta_true, alpha = alpha_true, sigma = 0.7)
+```
+
 
 
 ```{r}

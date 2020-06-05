@@ -1,13 +1,12 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
-
-
-NumericVector prior(int N){
-  return rnorm(N, 0.0, 1.0 / (1 - 0.8281));
+// [[Rcpp::export(name="pr")]]
+NumericVector prior(int N, double alpha, double sigma){
+  return rnorm(N, 0.0, pow(sigma,2) / (1 - pow(alpha,2)));
 }
 
-// [[Rcpp::export(name="some")]]
+// [[Rcpp::export(name="lk")]]
 NumericVector likelihood(double y, NumericVector x, double beta){
   int n = x.size();
   NumericVector like(n);
@@ -17,12 +16,13 @@ NumericVector likelihood(double y, NumericVector x, double beta){
   return like;
 }
 
-NumericVector transition(NumericVector x){
-  return 0.91*x + rnorm(x.size(), 0.0, 1.0); //rnorm(x.size(), 0.91*x, 1.0);
+// [[Rcpp::export(name="tr")]]
+NumericVector transition(NumericVector x, double alpha, double sigma){
+  return alpha*x + rnorm(x.size(), 0.0, sigma); //rnorm(x.size(), 0.91*x, 1.0);
 }
 
 // [[Rcpp::export(name="bf_cpp")]]
-List bf_cpp(NumericVector y, int N, double beta) {
+List bf_cpp(NumericVector y, int N, double beta, double alpha, double sigma) {
   int tmax = y.size();
   // Initialize particles, resampled particles and weights
   NumericMatrix particles(tmax+1, N);
@@ -34,12 +34,17 @@ List bf_cpp(NumericVector y, int N, double beta) {
   double log_marginal = 0.0;
   double maxlogw, sumweights;
   // First iteration
-  particles.row(0) = prior(N);
+  particles.row(0) = prior(N, alpha, sigma);
+  std::cout << "prior " << (NumericVector)particles.row(0) << std::endl;
+  std::cout << "prior func " << prior(N, alpha, sigma) << std::endl;
   // Main loop
   for (int t=1; t < (tmax+1); t++){
     // Sample from the prior and calculate (normalized) weights 
-    particles.row(t) = transition(particles.row(t-1));
+    //std::cout << "iteration " << t << std::endl;
+    particles.row(t) = transition(particles.row(t-1), alpha, sigma);
+    //std::cout << "parts " << (NumericVector)particles.row(t) << std::endl;
     logweights.row(t) = likelihood(y[t], particles.row(t), beta);
+    //std::cout << "logweights" << (NumericVector)logweights.row(t) << " " << std::endl;
     // log sum exp to find wait and likelihood
     maxlogw = max(logweights.row(t));
     logweights.row(t) = exp(logweights.row(t) - maxlogw);
@@ -47,6 +52,7 @@ List bf_cpp(NumericVector y, int N, double beta) {
     weightsnorm.row(t) = logweights.row(t) / sumweights;
     log_marginal += maxlogw + log(sumweights) - log(N);
     // Sample indices based on weights and use them to resample the columns of particle
+    //std::cout << "it " << weightsnorm << " it" << std::endl;
     ix = sample(N, N, true, (NumericVector)weightsnorm.row(t));
     for (int j=0; j < N; j++){
       resampled.column(j) = particles.column(ix[j]-1);
@@ -67,29 +73,29 @@ List bf_cpp(NumericVector y, int N, double beta) {
 
 
 
-// Sample theta propposal q(theta* | theta) In our case theta is beta. 
+// Sample theta proposal q(theta* | theta) In our case theta is beta. 
 // [[Rcpp::export(name="q")]]
 double q(double thetagiven){
-  return R::rnorm(thetagiven, 2.0);
+  return R::rnorm(thetagiven, 0.5);
 }
 
 // Prior for theta. Evaluates prior density
 // [[Rcpp::export(name="logp")]]
 double logp(double theta){
-  return R::dnorm(theta, 3.0, 2.0, true);
+  return R::dnorm(theta, 0.9, 0.5, true);
 }
 
 // Evaluates q(theta*|theta)
 // [[Rcpp::export(name="logqeval")]]
 double logqeval(double thetastar, double thetagiven){
-  return R::dnorm(thetastar, thetagiven, 2.0, true);
+  return R::dnorm(thetastar, thetagiven, 0.5, true);
 }
 
 // [[Rcpp::export(name="pmmh_cpp_bf")]]
-List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin){  // N is the number of particles
+List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, double alpha, double beta){  // N is the number of particles
 
   // INITIALIZATION: Run APF and grab sample & log marginal, then set starting param
-  List out = bf_cpp(y, N, thetastart); // Run APF
+  List out = bf_cpp(y, N, beta, alpha, thetastart); // Run APF
   NumericVector x = out["filtered_states"];             // Grab a sample from posterior
   double logm = out["log_marginal"];  // Grab log marginal
   double theta = thetastart;           // Set initial parameter
@@ -106,7 +112,8 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin){  //
     // Sample theta* from q(theta* | theta)
     theta_candidate = q(theta);
     // Sample a candidate by running APF. Extract sample and log marginal
-    out = bf_cpp(y, N, theta_candidate);
+    //std::cout << theta_candidate << std::endl;
+    out = bf_cpp(y, N, beta, alpha, theta_candidate);
     x_candidate = out["sample"];
     logm_candidate = out["log_marginal"];
     // Compute acceptance ratio
@@ -123,7 +130,8 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin){  //
     // Sample theta* from q(theta* | theta)
     theta_candidate = q(theta);
     // Sample a candidate by running APF. Extract sample and log marginal
-    out = bf_cpp(y, N, theta_candidate);
+    
+    out = bf_cpp(y, N, beta, alpha, theta_candidate);
     x_candidate = out["sample"];
     logm_candidate = out["log_marginal"];
     // Compute acceptance ratio
