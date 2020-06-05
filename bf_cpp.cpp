@@ -35,8 +35,8 @@ List bf_cpp(NumericVector y, int N, double beta, double alpha, double sigma) {
   double maxlogw, sumweights;
   // First iteration
   particles.row(0) = prior(N, alpha, sigma);
-  std::cout << "prior " << (NumericVector)particles.row(0) << std::endl;
-  std::cout << "prior func " << prior(N, alpha, sigma) << std::endl;
+  //std::cout << "prior " << (NumericVector)particles.row(0) << std::endl;
+  //std::cout << "prior func " << prior(N, alpha, sigma) << std::endl;
   // Main loop
   for (int t=1; t < (tmax+1); t++){
     // Sample from the prior and calculate (normalized) weights 
@@ -74,21 +74,21 @@ List bf_cpp(NumericVector y, int N, double beta, double alpha, double sigma) {
 
 
 // Sample theta proposal q(theta* | theta) In our case theta is beta. 
-// [[Rcpp::export(name="q")]]
+// [[Rcpp::export(name="param_proposal")]]
 double q(double thetagiven){
-  return R::rnorm(thetagiven, 0.5);
+  return Rcpp::rgamma(1, 10, thetagiven/10)[0]; //R::rnorm(thetagiven, 0.5);
 }
 
 // Prior for theta. Evaluates prior density
 // [[Rcpp::export(name="logp")]]
 double logp(double theta){
-  return R::dnorm(theta, 0.9, 0.5, true);
+  return R::dgamma(theta, 10, 1/10, true); //R::dnorm(theta, 0.9, 0.5, true);
 }
 
 // Evaluates q(theta*|theta)
 // [[Rcpp::export(name="logqeval")]]
 double logqeval(double thetastar, double thetagiven){
-  return R::dnorm(thetastar, thetagiven, 0.5, true);
+  return R::dgamma(thetastar, 10, thetagiven/10, true); //R::dnorm(thetastar, thetagiven, 0.5, true);
 }
 
 // [[Rcpp::export(name="pmmh_cpp_bf")]]
@@ -110,6 +110,7 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
   // BURN IN
   for (int i=0; i < burnin; i++){
     // Sample theta* from q(theta* | theta)
+    //std::cout << "write " << theta << " something" << std::endl;
     theta_candidate = q(theta);
     // Sample a candidate by running APF. Extract sample and log marginal
     //std::cout << theta_candidate << std::endl;
@@ -117,7 +118,7 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
     x_candidate = out["sample"];
     logm_candidate = out["log_marginal"];
     // Compute acceptance ratio
-    if (logu[i] <= logm_candidate + logp(theta_candidate) - logm - logp(theta)){
+    if (logu[i] <= logm_candidate + logp(theta_candidate) - logm - logp(theta) + logqeval(theta, theta_candidate) - logqeval(theta_candidate, theta)){
       // Accept!
       theta = theta_candidate;
       x = x_candidate;
@@ -135,7 +136,7 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
     x_candidate = out["sample"];
     logm_candidate = out["log_marginal"];
     // Compute acceptance ratio
-    if (logu[i] <= logm_candidate + logp(theta_candidate) - logm - logp(theta)){
+    if (logu[i] <= logm_candidate + logp(theta_candidate) - logm - logp(theta) + logqeval(theta, theta_candidate) - logqeval(theta_candidate, theta)){
       // Accept!
       theta = theta_candidate;
       x = x_candidate;

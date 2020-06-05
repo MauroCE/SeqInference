@@ -49,12 +49,6 @@ y <- data[-1, 2]
 plot(1:(tmax+1), data[, 1], type='l', main='Hidden State', xlab='t', ylab='x')
 ```
 
-
-```{r}
-plot(1:(tmax+1), data[, 2], type='l', main='Observations', xlab='t', ylab='x')
-```
-
-
 ### Bootstrap Filter Settings
 
 
@@ -66,31 +60,23 @@ plot(data[ix, 1], type="l")
 lines(out$filtered_states, col='red')
 ```
 
-
 ```{r}
 sourceCpp("bf_cpp.cpp")
 N <- 200
-out <- pmmh_cpp_bf(thetastart = 0.8, 
+out <- pmmh_cpp_bf(thetastart = 2, 
                    niter=700, 
                    N=N, 
                    y=y,
                    burnin=100,
                    beta = beta_true,
-                   sigma = sigma_true)
+                   alpha = alpha_true)
+out$acceptance
 ```
 
 
 ```{r}
-oo = pr(N, 0.8, sigma_true)
-tr(oo, 0.8, sigma_true)
+bf_cpp(y = y, N = N, beta = beta_true, alpha = alpha_true, sigma = -0.1)
 ```
-
-
-```{r}
-bf_cpp(y = y, N = N, beta = beta_true, alpha = alpha_true, sigma = 0.7)
-```
-
-
 
 ```{r}
 out$acceptance
