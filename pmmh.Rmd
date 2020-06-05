@@ -18,7 +18,7 @@ prior_function <- function(n=1, alpha, sigma) rnorm(n, 0.0, sigma / sqrt((1 - al
 
 ### Transition Function
 ```{r}
-transition_function <- function(x, n=1, alpha) rnorm(n, mean=alpha*x, sd=sigma)
+transition_function <- function(x, n=1, alpha) rnorm(n, mean=alpha*x, sd=sigma_true)
 ```
 
 ### Emission Function and Likelihood Function
@@ -63,7 +63,7 @@ lines(out$filtered_states, col='red')
 ```{r}
 sourceCpp("bf_cpp.cpp")
 N <- 200
-out <- pmmh_cpp_bf(thetastart = 2, 
+out <- pmmh_cpp_bf(thetastart = 0.5, 
                    niter=700, 
                    N=N, 
                    y=y,
