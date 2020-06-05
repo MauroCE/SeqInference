@@ -64,19 +64,18 @@ lines(out$filtered_states, col='red')
 ```{r}
 sourceCpp("bf_cpp_alpha.cpp")
 N <- 200
-out <- pmmh_cpp_bf(thetastart = 0.9, 
+out <- pmmh_cpp_bf(thetastart = 0.5, 
                    niter=700, 
                    N=N, 
                    y=y,
-                   burnin=100,
+                   burnin=0,
                    sigma = sigma_true,
                    beta = beta_true)
 out$acceptance
 ```
 
-
 ```{r}
-bf_cpp(y = y, N = N, beta = beta_true, alpha = 1.00275, sigma = sigma_true)
+bf_cpp(y = y, N = N, beta = beta_true, alpha = 0.78876, sigma = sigma_true)
 ```
 
 ```{r}
@@ -93,7 +92,7 @@ mean(out$samples[-(1:n)])
 ```
 
 ```{r}
-out$samples[]
+mean(out$samples)
 ```
 
 

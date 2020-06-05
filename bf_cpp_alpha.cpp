@@ -1,5 +1,6 @@
 #include <Rcpp.h>
 using namespace Rcpp;
+#include <fstream>
 
 // [[Rcpp::export(name="pr")]]
 NumericVector prior(int N, double alpha, double sigma){
@@ -42,7 +43,7 @@ List bf_cpp(NumericVector y, int N, double beta, double alpha, double sigma) {
     // Sample from the prior and calculate (normalized) weights 
     //std::cout << "iteration " << t << std::endl;
     particles.row(t) = transition(particles.row(t-1), alpha, sigma);
-    std::cout << "parts " << (NumericVector)particles.row(t) << std::endl;
+    //std::cout << "parts " << (NumericVector)particles.row(t) << std::endl;
     logweights.row(t) = likelihood(y[t], particles.row(t), beta);
     //std::cout << "logweights" << (NumericVector)logweights.row(t) << " " << std::endl;
     // log sum exp to find wait and likelihood
@@ -52,7 +53,9 @@ List bf_cpp(NumericVector y, int N, double beta, double alpha, double sigma) {
     weightsnorm.row(t) = logweights.row(t) / sumweights;
     log_marginal += maxlogw + log(sumweights) - log(N);
     // Sample indices based on weights and use them to resample the columns of particle
-    //std::cout << "it " << weightsnorm << " it" << std::endl;
+    //std::ofstream outfile;
+    //outfile.open("weights.txt", std::ios_base::app); // append instead of overwrite
+    //outfile << "Range of NormWeights: " << (NumericVector)range(weightsnorm.row(t)); 
     ix = sample(N, N, true, (NumericVector)weightsnorm.row(t));
     for (int j=0; j < N; j++){
       resampled.column(j) = particles.column(ix[j]-1);
@@ -84,13 +87,13 @@ double q(double thetagiven){
 // Prior for theta. Evaluates prior density
 // [[Rcpp::export(name="logp")]]
 double logp(double theta){
-  return R::dgamma(theta, 10, 1/10, true); //R::dnorm(theta, 0.9, 0.5, true);
+  return R::dbeta(theta, 6, 6/0.8 - 6, true); //R::dnorm(theta, 0.9, 0.5, true);
 }
 
 // Evaluates q(theta*|theta)
 // [[Rcpp::export(name="logqeval")]]
 double logqeval(double thetastar, double thetagiven){
-  return R::dgamma(thetastar, 10, thetagiven/10, true); //R::dnorm(thetastar, thetagiven, 0.5, true);
+  return R::dbeta(thetastar, 6, 6/thetagiven - 6, true);   //R::dgamma(thetastar, 10, thetagiven/10, true); //R::dnorm(thetastar, thetagiven, 0.5, true);
 }
 
 // [[Rcpp::export(name="pmmh_cpp_bf")]]
@@ -108,37 +111,53 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
   double theta_candidate;
   double logm_candidate;
   NumericVector x_candidate;
+  bool inbound;
+  double ap;   // acceptance probability
   
   // BURN IN
   for (int i=0; i < burnin; i++){
     // Sample theta* from q(theta* | theta)
-    std::cout << "write " << theta << " something" << std::endl;
+    //std::cout << "write " << theta << " something" << std::endl;
     theta_candidate = q(theta);
-    // Sample a candidate by running APF. Extract sample and log marginal
-    std::cout << theta_candidate << std::endl;
-    out = bf_cpp(y, N, beta, theta_candidate, sigma);
-    x_candidate = out["sample"];
-    logm_candidate = out["log_marginal"];
+    std::cout << "Cand: " << theta_candidate << std::endl;
+    inbound = (0.0001 < theta_candidate) && (theta_candidate < 0.9999) && (theta_candidate != 1);
+    if (inbound){
+      // Sample a candidate by running APF. Extract sample and log marginal
+      //std::cout << "The eagle is in the nest, I repeat the eagle is in the nest." << std::endl;
+      out = bf_cpp(y, N, beta, theta_candidate, sigma);
+      x_candidate = out["sample"];
+      logm_candidate = out["log_marginal"];
+    }
+    ap = logm_candidate + logp(theta_candidate) - logm - logp(theta) + logqeval(theta, theta_candidate) - logqeval(theta_candidate, theta) + log(inbound);
     // Compute acceptance ratio
-    if (logu[i] <= logm_candidate + logp(theta_candidate) - logm - logp(theta) + logqeval(theta, theta_candidate) - logqeval(theta_candidate, theta)){
+    if (logu[i] <= ap){
       // Accept!
       theta = theta_candidate;
       x = x_candidate;
       logm = logm_candidate;
     }
   }
+  //std::cout << "burn in done" << std::endl;
   
   // MAIN LOOP
   for (int i=0; i < niter; i++){
     // Sample theta* from q(theta* | theta)
     theta_candidate = q(theta);
+    //std::cout << "Cand: " << theta_candidate << std::endl;
+    // check 0 < < 1
+    inbound = (0.0001 < theta_candidate) && (theta_candidate < 0.9999) && (theta_candidate != 1);
+    if (inbound){
+      // Sample a candidate by running APF. Extract sample and log marginal
+      //std::cout << "The eagle is in the nest, I repeat the eagle is in the nest." << std::endl;
+      out = bf_cpp(y, N, beta, theta_candidate, sigma);
+      x_candidate = out["sample"];
+      logm_candidate = out["log_marginal"];
+    }
     // Sample a candidate by running APF. Extract sample and log marginal
-    
-    out = bf_cpp(y, N, beta, theta_candidate, sigma);
-    x_candidate = out["sample"];
-    logm_candidate = out["log_marginal"];
+    //std::cout << "iteration: " << i << " Theta candidate: " << theta_candidate << "P(cand): " << exp(logp(theta_candidate)) << "P(curr): "<< exp(logp(theta)) << std::endl;
+    ap = logm_candidate + logp(theta_candidate) - logm - logp(theta) + logqeval(theta, theta_candidate) - logqeval(theta_candidate, theta) + log(inbound);
     // Compute acceptance ratio
-    if (logu[i] <= logm_candidate + logp(theta_candidate) - logm - logp(theta) + logqeval(theta, theta_candidate) - logqeval(theta_candidate, theta)){
+    if (logu[i] <= ap){
       // Accept!
       theta = theta_candidate;
       x = x_candidate;
