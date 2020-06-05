@@ -81,7 +81,7 @@ List bf_cpp(NumericVector y, int N, double beta, double alpha, double sigma) {
 double q(double thetagiven){
   //return Rcpp::rgamma(1, 10, thetagiven/10)[0]; 
   //R::rnorm(thetagiven, 0.5);
-  return Rcpp::rbeta(1, 6, 6/thetagiven - 6)[0];
+  return Rcpp::rbeta(1, 50, 50/thetagiven - 50)[0];
 }
 
 // Prior for theta. Evaluates prior density
@@ -93,7 +93,7 @@ double logp(double theta){
 // Evaluates q(theta*|theta)
 // [[Rcpp::export(name="logqeval")]]
 double logqeval(double thetastar, double thetagiven){
-  return R::dbeta(thetastar, 6, 6/thetagiven - 6, true);   //R::dgamma(thetastar, 10, thetagiven/10, true); //R::dnorm(thetastar, thetagiven, 0.5, true);
+  return R::dbeta(thetastar, 50, 50/thetagiven - 50, true);   //R::dgamma(thetastar, 10, thetagiven/10, true); //R::dnorm(thetastar, thetagiven, 0.5, true);
 }
 
 // [[Rcpp::export(name="pmmh_cpp_bf")]]
