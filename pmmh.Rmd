@@ -22,7 +22,7 @@ transition_function <- function(x, n=1) rnorm(n, mean=alpha*x, sd=sigma)
 ### Emission Function and Likelihood Function
 ```{r}
 emission_function <- function(x, beta) rnorm(n=1, mean=0, sd=beta*exp(x/2))
-likelihood_function <- function(y, x, beta) dnorm(x=y, mean=0, sd=abs(beta*exp(x/2)))
+likelihood_function <- function(y, x, beta) dnorm(x=y, mean=0, sd=beta*exp(x/2))
 ```
 
 ### Data Generation
@@ -30,7 +30,7 @@ likelihood_function <- function(y, x, beta) dnorm(x=y, mean=0, sd=abs(beta*exp(x
 set.seed(192837465)    #123
 alpha <- 0.91
 sigma <- 1.0
-beta  <- 0.5
+beta  <- 10
 tmax <- 500
 data <- matrix(0, nrow=(tmax+1), ncol=2)
 data[1, 1] <- prior_function(n=1)
@@ -40,6 +40,11 @@ for (i in 2:(tmax+1)){
   data[i, 2] <- emission_function(data[i, 1], beta)
 }
 plot(1:(tmax+1), data[, 1], type='l', main='Hidden State', xlab='t', ylab='x')
+```
+
+
+```{r}
+plot(1:(tmax+1), data[, 2], type='l', main='Observations', xlab='t', ylab='x')
 ```
 
 
@@ -227,19 +232,21 @@ plot(out$samples, type='l')
 
 
 ```{r}
+library(Rcpp)
+ix = 1:200
 sourceCpp("bf_cpp.cpp")
-out <- bf_cpp(data[, 2], 300, 0.5)
-plot(data[, 1], type="l")
+out <- bf_cpp(data[ix, 2], 300, 10)
+plot(data[ix, 1], type="l")
 lines(out$filtered_states, col='red')
 ```
 
 
 ```{r}
-out <- pmmh_cpp_bf(thetastart = 1.0, 
-                   niter=5000, 
-                   N=500, 
+out <- pmmh_cpp_bf(thetastart = 5.0, 
+                   niter=700, 
+                   N=200, 
                    y=data[, 2],
-                   burnin=2500)
+                   burnin=100)
 ```
 
 
