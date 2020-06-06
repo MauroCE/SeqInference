@@ -123,21 +123,26 @@ double logqsigmaeval(double thetastar, double thetagiven){
 
 
 // [[Rcpp::export(name="pmmh_cpp_bf")]]
-List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, double alpha, double beta){  // N is the number of particles
+List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, double alphastart, double beta){  // N is the number of particles
   
   // INITIALIZATION: Run APF and grab sample & log marginal, then set starting param
-  List out = bf_cpp(y, N, beta, alpha, thetastart); // Run APF
+  List out = bf_cpp(y, N, beta, alphastart, thetastart); // Run APF
   NumericVector x = out["filtered_states"];             // Grab a sample from posterior
   double logm = out["log_marginal"];  // Grab log marginal
   double theta = thetastart;           // Set initial parameter
+  double alpha = alphastart;
   NumericVector logu = log(runif(N));             // Generate log() of uniform random numbers
   NumericVector samples(niter);                // Instantiate a vector of samples. This will be outputted
+  NumericVector alphasamples(niter);
   int accepted = 0;                 // Counts the number of times we accept
+  int alphaaccepted = 0;
   NumericVector log_marginals(niter);         // Store the log marginals. Can be used to evaluate performance of algorithm
   double theta_candidate;
+  double alpha_candidate;
   double logm_candidate;
   NumericVector x_candidate;
   bool inbound;
+  bool inboundalpha;
   double ap;   // acceptance probability
   
   // BURN IN
@@ -145,22 +150,27 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
     // Sample theta* from q(theta* | theta)
     //std::cout << "write " << theta << " something" << std::endl;
     theta_candidate = qsigma(theta);
+    alpha_candidate = qalpha(alpha);
     //std::cout << "Cand: " << theta_candidate << std::endl;
     //inbound = (0.0001 < theta_candidate) && (theta_candidate < 0.9999) && (theta_candidate != 1);
     inbound = (0.0001 < theta_candidate) && (theta_candidate != 0);
-    if (inbound){
+    inboundalpha = (0.0001 < alpha_candidate) && (alpha_candidate < 0.9999) && (alpha_candidate != 1);
+    if (inbound && inboundalpha){
       // Sample a candidate by running APF. Extract sample and log marginal
       //std::cout << "The eagle is in the nest, I repeat the eagle is in the nest." << std::endl;
-      out = bf_cpp(y, N, beta, alpha, theta_candidate);
+      out = bf_cpp(y, N, beta, alpha_candidate, theta_candidate);
       x_candidate = out["sample"];
       logm_candidate = out["log_marginal"];
     }
-    ap = logm_candidate + logpsigma(theta_candidate) - logm - logpsigma(theta) + logqsigmaeval(theta, theta_candidate) - logqsigmaeval(theta_candidate, theta) + log(inbound);
-    std::cout << "iteration: " << i << " Theta candidate: " << theta_candidate << " P(cand): " << exp(logpsigma(theta_candidate)) << " P(curr): "<< exp(logpsigma(theta)) << " AP: "<< ap << std::endl;
+    ap = logm_candidate - logm
+      + logpsigma(theta_candidate) - logpsigma(theta)  + logqsigmaeval(theta, theta_candidate) - logqsigmaeval(theta_candidate, theta) + log(inbound)
+      + logpalpha(alpha_candidate) - logpalpha(alpha)  + logqalphaeval(alpha, alpha_candidate) - logqalphaeval(alpha_candidate, alpha) + log(inboundalpha);
+    //std::cout << "iteration: " << i << " Theta candidate: " << theta_candidate << " P(cand): " << exp(logpsigma(theta_candidate)) << " P(curr): "<< exp(logpsigma(theta)) << " AP: "<< ap << std::endl;
     // Compute acceptance ratio
     if (logu[i] <= ap){
       // Accept!
       theta = theta_candidate;
+      alpha = alpha_candidate;
       x = x_candidate;
       logm = logm_candidate;
     }
@@ -171,36 +181,46 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
   for (int i=0; i < niter; i++){
     // Sample theta* from q(theta* | theta)
     theta_candidate = qalpha(theta);
+    alpha_candidate = qalpha(alpha);
     //std::cout << "Cand: " << theta_candidate << std::endl;
     // check 0 < < 1
     //inbound = (0.0001 < theta_candidate) && (theta_candidate < 0.9999) && (theta_candidate != 1);
-    inbound = (0.0001 < theta_candidate) && (theta_candidate != 0);
-    if (inbound){
+    inboundalpha = (0.0001 < alpha_candidate) && (alpha_candidate < 0.9999) && (alpha_candidate != 1);
+    if (inbound && inboundalpha){
       // Sample a candidate by running APF. Extract sample and log marginal
       //std::cout << "The eagle is in the nest, I repeat the eagle is in the nest." << std::endl;
-      out = bf_cpp(y, N, beta, alpha, theta_candidate);
+      out = bf_cpp(y, N, beta, alpha_candidate, theta_candidate);
       x_candidate = out["sample"];
       logm_candidate = out["log_marginal"];
+      
     }
     // Sample a candidate by running APF. Extract sample and log marginal
-    std::cout << "iteration: " << i << " Theta candidate: " << theta_candidate << "P(cand): " << exp(logpsigma(theta_candidate)) << "P(curr): "<< exp(logpsigma(theta)) << " AP: "<< ap  << std::endl;
+    //std::cout << "iteration: " << i << " Theta candidate: " << theta_candidate << "P(cand): " << exp(logpsigma(theta_candidate)) << "P(curr): "<< exp(logpsigma(theta)) << " AP: "<< ap  << std::endl;
     //ap = logm_candidate + logpalpha(theta_candidate) - logm - logpalpha(theta) + logqalphaeval(theta, theta_candidate) - logqalphaeval(theta_candidate, theta) + log(inbound);
-    ap = logm_candidate + logpsigma(theta_candidate) - logm - logpsigma(theta) + logqsigmaeval(theta, theta_candidate) - logqsigmaeval(theta_candidate, theta) + log(inbound);
+    ap = logm_candidate - logm
+      + logpsigma(theta_candidate) - logpsigma(theta)  + logqsigmaeval(theta, theta_candidate) - logqsigmaeval(theta_candidate, theta) + log(inbound)
+      + logpalpha(alpha_candidate) - logpalpha(alpha)  + logqalphaeval(alpha, alpha_candidate) - logqalphaeval(alpha_candidate, alpha) + log(inboundalpha);
+      
     // Compute acceptance ratio
     if (logu[i] <= ap){
       // Accept!
       theta = theta_candidate;
+      alpha = alpha_candidate;
       x = x_candidate;
       logm = logm_candidate;
       accepted++;
+      alphaaccepted++;
     }
     // Now add the sample
     samples[i] = theta;
+    alphasamples[i] =alpha;
     log_marginals[i] = logm;
   }
   // Return a named list
   return Rcpp::List::create(Rcpp::Named("acceptance") = accepted/(double)niter,
+                            Rcpp::Named("acceptancealpha") = alphaaccepted/(double)niter,
                             Rcpp::Named("samples") = samples,
+                            Rcpp::Named("alphasamples") = alphasamples,
                             Rcpp::Named("log_marginals") = log_marginals);
 }
 

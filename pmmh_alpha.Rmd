@@ -63,13 +63,14 @@ lines(out$filtered_states, col='red')
 
 ```{r}
 sourceCpp("bf_cpp_alpha.cpp")
+set.seed(49)
 N <- 200
 out <- pmmh_cpp_bf(thetastart = 0.5, 
-                   niter=700, 
+                   niter=1000, 
                    N=N, 
                    y=y,
                    burnin=0,
-                   sigma = sigma_true,
+                   alpha = 0.5,
                    beta = beta_true)
 out$acceptance
 ```
@@ -84,11 +85,13 @@ out$acceptance
 
 ```{r}
 plot(out$samples, type='l')
+plot(out$alphasamples, type="l")
 ```
 
 ```{r}
 n <- length(out$samples) * 0.7
 mean(out$samples[-(1:n)])
+mean(out$alphasamples[-(1:n)])
 ```
 
 ```{r}
