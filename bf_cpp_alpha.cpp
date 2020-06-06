@@ -74,11 +74,11 @@ List bf_cpp(NumericVector y, int N, double beta, double alpha, double sigma) {
 }
 
 
-
+// ALPHA
 
 // Sample theta proposal q(theta* | theta) In our case theta is beta. 
 // [[Rcpp::export(name="param_proposal")]]
-double q(double thetagiven){
+double qalpha(double thetagiven){
   //return Rcpp::rgamma(1, 10, thetagiven/10)[0]; 
   //R::rnorm(thetagiven, 0.5);
   return Rcpp::rbeta(1, 50, 50/thetagiven - 50)[0];
@@ -86,21 +86,47 @@ double q(double thetagiven){
 
 // Prior for theta. Evaluates prior density
 // [[Rcpp::export(name="logp")]]
-double logp(double theta){
+double logpalpha(double theta){
   return R::dbeta(theta, 6, 6/0.8 - 6, true); //R::dnorm(theta, 0.9, 0.5, true);
 }
 
 // Evaluates q(theta*|theta)
 // [[Rcpp::export(name="logqeval")]]
-double logqeval(double thetastar, double thetagiven){
+double logqalphaeval(double thetastar, double thetagiven){
   return R::dbeta(thetastar, 50, 50/thetagiven - 50, true);   //R::dgamma(thetastar, 10, thetagiven/10, true); //R::dnorm(thetastar, thetagiven, 0.5, true);
 }
 
+ // SIGMA 
+
+// transition sigma
+// [[Rcpp::export(name="qsigma")]]
+double qsigma(double thetagiven){
+    return Rcpp::rgamma(1, 5, thetagiven/(double)5)[0];
+}
+
+// prior sigma
+// [[Rcpp::export(name="priorsigma")]]
+double logpsigma(double theta){
+  return R::dgamma(theta, 5, 0.2, true);
+}
+
+// [[Rcpp::export(name="priorsigmatest")]]
+double logpsigmatest(double theta, double shape, double rate){
+  return R::dgamma(theta, shape, rate, true);
+}
+
+// evaluates transition sigma
+// [[Rcpp::export(name="qsigmaeval")]]
+double logqsigmaeval(double thetastar, double thetagiven){
+  return R::dgamma(thetastar, 5, thetagiven/(double)5, true);
+}
+
+
 // [[Rcpp::export(name="pmmh_cpp_bf")]]
-List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, double sigma, double beta){  // N is the number of particles
+List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, double alpha, double beta){  // N is the number of particles
   
   // INITIALIZATION: Run APF and grab sample & log marginal, then set starting param
-  List out = bf_cpp(y, N, beta, thetastart, sigma); // Run APF
+  List out = bf_cpp(y, N, beta, alpha, thetastart); // Run APF
   NumericVector x = out["filtered_states"];             // Grab a sample from posterior
   double logm = out["log_marginal"];  // Grab log marginal
   double theta = thetastart;           // Set initial parameter
@@ -118,17 +144,19 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
   for (int i=0; i < burnin; i++){
     // Sample theta* from q(theta* | theta)
     //std::cout << "write " << theta << " something" << std::endl;
-    theta_candidate = q(theta);
-    std::cout << "Cand: " << theta_candidate << std::endl;
-    inbound = (0.0001 < theta_candidate) && (theta_candidate < 0.9999) && (theta_candidate != 1);
+    theta_candidate = qsigma(theta);
+    //std::cout << "Cand: " << theta_candidate << std::endl;
+    //inbound = (0.0001 < theta_candidate) && (theta_candidate < 0.9999) && (theta_candidate != 1);
+    inbound = (0.0001 < theta_candidate) && (theta_candidate != 0);
     if (inbound){
       // Sample a candidate by running APF. Extract sample and log marginal
       //std::cout << "The eagle is in the nest, I repeat the eagle is in the nest." << std::endl;
-      out = bf_cpp(y, N, beta, theta_candidate, sigma);
+      out = bf_cpp(y, N, beta, alpha, theta_candidate);
       x_candidate = out["sample"];
       logm_candidate = out["log_marginal"];
     }
-    ap = logm_candidate + logp(theta_candidate) - logm - logp(theta) + logqeval(theta, theta_candidate) - logqeval(theta_candidate, theta) + log(inbound);
+    ap = logm_candidate + logpsigma(theta_candidate) - logm - logpsigma(theta) + logqsigmaeval(theta, theta_candidate) - logqsigmaeval(theta_candidate, theta) + log(inbound);
+    std::cout << "iteration: " << i << " Theta candidate: " << theta_candidate << " P(cand): " << exp(logpsigma(theta_candidate)) << " P(curr): "<< exp(logpsigma(theta)) << " AP: "<< ap << std::endl;
     // Compute acceptance ratio
     if (logu[i] <= ap){
       // Accept!
@@ -142,20 +170,22 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
   // MAIN LOOP
   for (int i=0; i < niter; i++){
     // Sample theta* from q(theta* | theta)
-    theta_candidate = q(theta);
+    theta_candidate = qalpha(theta);
     //std::cout << "Cand: " << theta_candidate << std::endl;
     // check 0 < < 1
-    inbound = (0.0001 < theta_candidate) && (theta_candidate < 0.9999) && (theta_candidate != 1);
+    //inbound = (0.0001 < theta_candidate) && (theta_candidate < 0.9999) && (theta_candidate != 1);
+    inbound = (0.0001 < theta_candidate) && (theta_candidate != 0);
     if (inbound){
       // Sample a candidate by running APF. Extract sample and log marginal
       //std::cout << "The eagle is in the nest, I repeat the eagle is in the nest." << std::endl;
-      out = bf_cpp(y, N, beta, theta_candidate, sigma);
+      out = bf_cpp(y, N, beta, alpha, theta_candidate);
       x_candidate = out["sample"];
       logm_candidate = out["log_marginal"];
     }
     // Sample a candidate by running APF. Extract sample and log marginal
-    //std::cout << "iteration: " << i << " Theta candidate: " << theta_candidate << "P(cand): " << exp(logp(theta_candidate)) << "P(curr): "<< exp(logp(theta)) << std::endl;
-    ap = logm_candidate + logp(theta_candidate) - logm - logp(theta) + logqeval(theta, theta_candidate) - logqeval(theta_candidate, theta) + log(inbound);
+    std::cout << "iteration: " << i << " Theta candidate: " << theta_candidate << "P(cand): " << exp(logpsigma(theta_candidate)) << "P(curr): "<< exp(logpsigma(theta)) << " AP: "<< ap  << std::endl;
+    //ap = logm_candidate + logpalpha(theta_candidate) - logm - logpalpha(theta) + logqalphaeval(theta, theta_candidate) - logqalphaeval(theta_candidate, theta) + log(inbound);
+    ap = logm_candidate + logpsigma(theta_candidate) - logm - logpsigma(theta) + logqsigmaeval(theta, theta_candidate) - logqsigmaeval(theta_candidate, theta) + log(inbound);
     // Compute acceptance ratio
     if (logu[i] <= ap){
       // Accept!
