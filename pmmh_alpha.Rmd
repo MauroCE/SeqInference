@@ -9,6 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(Rcpp)
 library(ggplot2)
+library(RcppTN)
 ```
 
 # Bootstrap Filter in R (Stochastic Volatility)
@@ -35,7 +36,7 @@ likelihood_function <- function(y, x, beta) dnorm(x=y, mean=0, sd=beta*exp(x/2))
 set.seed(192837465)    #123
 alpha_true <- 0.91
 sigma_true <- 1.0
-beta_true  <- 10
+beta_true  <- 0.5
 tmax <- 500
 data <- matrix(0, nrow=(tmax+1), ncol=2)
 data[1, 1] <- prior_function(n=1, alpha = alpha_true, sigma = sigma_true)
@@ -63,8 +64,7 @@ lines(out$filtered_states, col='red')
 
 ```{r}
 sourceCpp("bf_cpp_alpha.cpp")
-set.seed(49)
-N <- 200
+N <- 300
 out <- pmmh_cpp_bf(thetastart = 0.5, 
                    niter=1000, 
                    N=N, 
@@ -73,6 +73,8 @@ out <- pmmh_cpp_bf(thetastart = 0.5,
                    alpha = 0.5,
                    beta = beta_true)
 out$acceptance
+plot(out$samples, type='l')
+plot(out$alphasamples, type="l")
 ```
 
 ```{r}
@@ -92,6 +94,7 @@ plot(out$alphasamples, type="l")
 n <- length(out$samples) * 0.7
 mean(out$samples[-(1:n)])
 mean(out$alphasamples[-(1:n)])
+mean(out$betasamples[-(1:n)])
 ```
 
 ```{r}
