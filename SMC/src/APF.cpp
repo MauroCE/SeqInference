@@ -1,6 +1,7 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 
 #include <RcppArmadillo.h>
+#include "utils.h"
 using namespace Rcpp;
 
 class SS_Model {
@@ -94,20 +95,6 @@ class SS_Model {
     
 };
 
-arma::vec elem_mult(arma::vec a, arma::vec b) {
-  int n = a.n_elem;
-  arma::vec out(n);
-  for (int i = 0; i < n; ++i) {
-    out(i) = a(i) * b(i);
-  }
-  return out;
-}
-
-arma::vec normalize(arma::vec v) {
-  double total = arma::accu(v);
-  return v / total;
-}
-
 arma::vec update_weights(arma::vec weights, arma::vec parent_weights, arma::vec lik) {
   int n = weights.n_elem;
   arma::vec updated(n);
@@ -124,6 +111,18 @@ double log_marginal(arma::vec weights, arma::vec aux_lik) { // Not the full marg
   return log(weight_mean * aux_lik_mean);
 }
 
+//' Auxiliary Particle Filter
+//' 
+//' This function is currently limited to the stochastic volatility model.
+//' 
+//' @param obs A vector of observations to be filtered.
+//' @param num_particles A positive integer number of particles to be used
+//' in the simulation.
+//' @param param A vector of model parameters.
+//' 
+//' @return A list containing a sample from the empirical distribution; the
+//' approximated marginal log-likelihood of the data; the filtered states.
+// [[Rcpp::export(name = "APF")]]
 Rcpp::List APF(arma::colvec obs, int num_particles, arma::vec param) {
   // INITIALISATION: (not sure if this is right...)
   SS_Model model(obs, num_particles, param);
@@ -151,21 +150,4 @@ Rcpp::List APF(arma::colvec obs, int num_particles, arma::vec param) {
   return Rcpp::List::create(Rcpp::Named("sample") = sampled_particle,
                             Rcpp::Named("log_marginal") = full_log_marginal,
                             Rcpp::Named("filtered_states") = filtered);
-}
-
-
-//' Auxiliary Particle Filter
-//' 
-//' This function is currently limited to the stochastic volatility model.
-//' 
-//' @param obs A vector of observations to be filtered.
-//' @param num_particles A positive integer number of particles to be used
-//' in the simulation.
-//' @param param A vector of model parameters.
-//' 
-//' @return A list containing a sample from the empirical distribution; the
-//' approximated marginal log-likelihood of the data; the filtered states.
-// [[Rcpp::export(name = "APF")]]
-Rcpp::List APF_r(arma::colvec obs, int num_particles, arma::vec param) {
-  return APF(obs, num_particles, param);
 }

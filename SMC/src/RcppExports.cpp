@@ -6,22 +6,54 @@
 
 using namespace Rcpp;
 
-// APF_r
-Rcpp::List APF_r(arma::colvec obs, int num_particles, arma::vec param);
-RcppExport SEXP _SMC_APF_r(SEXP obsSEXP, SEXP num_particlesSEXP, SEXP paramSEXP) {
+// APF
+Rcpp::List APF(arma::colvec obs, int num_particles, arma::vec param);
+RcppExport SEXP _SMC_APF(SEXP obsSEXP, SEXP num_particlesSEXP, SEXP paramSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< arma::colvec >::type obs(obsSEXP);
     Rcpp::traits::input_parameter< int >::type num_particles(num_particlesSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type param(paramSEXP);
-    rcpp_result_gen = Rcpp::wrap(APF_r(obs, num_particles, param));
+    rcpp_result_gen = Rcpp::wrap(APF(obs, num_particles, param));
+    return rcpp_result_gen;
+END_RCPP
+}
+// BSF
+List BSF(arma::vec obs, int N, arma::rowvec param);
+RcppExport SEXP _SMC_BSF(SEXP obsSEXP, SEXP NSEXP, SEXP paramSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::vec >::type obs(obsSEXP);
+    Rcpp::traits::input_parameter< int >::type N(NSEXP);
+    Rcpp::traits::input_parameter< arma::rowvec >::type param(paramSEXP);
+    rcpp_result_gen = Rcpp::wrap(BSF(obs, N, param));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pmmh
+List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, double alphastart, double beta);
+RcppExport SEXP _SMC_pmmh(SEXP thetastartSEXP, SEXP niterSEXP, SEXP NSEXP, SEXP ySEXP, SEXP burninSEXP, SEXP alphastartSEXP, SEXP betaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type thetastart(thetastartSEXP);
+    Rcpp::traits::input_parameter< int >::type niter(niterSEXP);
+    Rcpp::traits::input_parameter< int >::type N(NSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type y(ySEXP);
+    Rcpp::traits::input_parameter< int >::type burnin(burninSEXP);
+    Rcpp::traits::input_parameter< double >::type alphastart(alphastartSEXP);
+    Rcpp::traits::input_parameter< double >::type beta(betaSEXP);
+    rcpp_result_gen = Rcpp::wrap(pmmh(thetastart, niter, N, y, burnin, alphastart, beta));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_SMC_APF_r", (DL_FUNC) &_SMC_APF_r, 3},
+    {"_SMC_APF", (DL_FUNC) &_SMC_APF, 3},
+    {"_SMC_BSF", (DL_FUNC) &_SMC_BSF, 3},
+    {"_SMC_pmmh", (DL_FUNC) &_SMC_pmmh, 7},
     {NULL, NULL, 0}
 };
 

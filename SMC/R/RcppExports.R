@@ -13,6 +13,38 @@
 #' @return A list containing a sample from the empirical distribution; the
 #' approximated marginal log-likelihood of the data; the filtered states.
 APF <- function(obs, num_particles, param) {
-    .Call(`_SMC_APF_r`, obs, num_particles, param)
+    .Call(`_SMC_APF`, obs, num_particles, param)
+}
+
+#' Bootstrap Particle Filter
+#' 
+#' @param obs A vector of observations to be filtered.
+#' @param N The number of particles to be used in the filter.
+#' @param param The model parameters to be used within the filter. These are
+#' passed in the form c(alpha, beta, sigma).
+#' 
+#' @return A list containing the filtered states; a sample from the posterior
+#' distribution; the log-marginal distribution of the observations.
+#' 
+BSF <- function(obs, N, param) {
+    .Call(`_SMC_BSF`, obs, N, param)
+}
+
+#' Pseudo-Marginal Metropolis Hastings
+#' 
+#' Using a beta distribution as the proposal and gamma priors on alpha and
+#' Sigma.
+#' 
+#' @param thetastart The starting values for theta (sigma?).
+#' @param niter The length of the chains.
+#' @param N The number of particles to used in the marginal likelihood
+#' approximation.
+#' @param y A vector of observations.
+#' @param burnin The size of the burn-in period.
+#' @param alphastart Initial value for alpha parameter.
+#' @param beta The true value of beta from which the data is generated.
+#' 
+pmmh1 <- function(thetastart, niter, N, y, burnin, alphastart, beta) {
+    .Call(`_SMC_pmmh`, thetastart, niter, N, y, burnin, alphastart, beta)
 }
 
