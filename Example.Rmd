@@ -19,21 +19,13 @@ tmax <- 500
 param <- c(0.9, 1, 1) # True model paramters.
 ```
 
+Generate dataset
 ```{r eval = F}
 set.seed(192837465)
 data <- SMC::stochastic_volatility(tmax, param)
-
-# Plot the data:
-pl_data <- ggplot(cbind("t" = 1:tmax, data)) +
-           geom_line(aes(x = t, y = x, col = "States")) +
-           geom_point(aes(x = t, y = y, col = "Observations")) +
-           theme(legend.title = element_blank(), legend.position = c(0.9, 0.9)) +
-           ylab("")
 # saveRDS(data,"Data/sv_example_data.RDS") # save dataset.
-# png("Figures/sv_example.png")
-pl_data
-# dev.off()
 ```
+
 
 ## PMMH settings used for producing the plots.
 * niter = 800
@@ -47,16 +39,13 @@ pl_data
 
 Run the algorithm with the settings described above and save the output for future use.
 
-```{r include = F}
+```{r eval = F}
 N <- 300
 initial <- c(0.3, 1, 0.5)
-```
-
-```{r eval = F}
 mh_results <- SMC::pmmh1(thetastart = initial[3],
                    niter=800,
                    N=N,
-                   y=data$y,
+                   y=y,
                    burnin=0,
                    alpha = initial[1],
                    beta = param[2])
@@ -64,11 +53,30 @@ mh_results <- SMC::pmmh1(thetastart = initial[3],
 #saveRDS(mh_results, 'Data/mh_results.RDS')
 ```
 
-Load saved data and PMH output.
+Load the saveddataset and MH output.
 ```{r}
 data <- readRDS("Data/sv_example_data.RDS")
-y <- data$y
+y <- data[-1,2]
 mh_results <- readRDS("Data/mh_results.RDS")
+```
+
+
+```{r echo=FALSE}
+df <- data.frame(states=1:dim(data)[1],x=data[,1],y=data[,2])
+ggplot(data = df)+
+  geom_line(aes(x=states,y=x),color = "black", size = 0.4)+
+  geom_point(aes(x=states, y=y), color='grey40', alpha=0.5,size=0.3)+
+  labs(x="time",y = "")+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+# ggsave("Figures/true_x_y.png",height = 5, width=8,units = "cm")
 ```
 
 Compute the mean of the parameter estimates from iteration $200$ to $800$.
@@ -79,6 +87,41 @@ mean(mh_results$samples[200:800])
 # alpha
 mean(mh_results$alphasamples[200:800])
 ```
+
+### Plots of the states and observations
+```{r , echo=FALSE}
+df <- data.frame(states=1:dim(data)[1],x=data[,1],y=data[,2])
+ggplot(data = df)+
+  geom_line(aes(x=states,y=x),color = "black", size = 0.4)+
+  labs(x="time",y = "x")+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+# ggsave("Figures/true_x.png",height = 5, width=8,units = "cm")
+```
+
+```{r echo=FALSE}
+ggplot(data = df)+
+  geom_line(aes(x=states,y=y),color = "black", size = 0.4)+
+  labs(x="time",y = "y")+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+# ggsave("Figures/true_y.png",height = 5, width=8,units = "cm")
+```
+
 
 ### Trace plots
 ```{r, echo=FALSE}
@@ -164,7 +207,7 @@ State estimates based on the the initial parameter values.
 #saveRDS(x_filtered_init, "Data/x_filtered_init.RDS")
 x_filtered_init <- readRDS("Data/x_filtered_init.RDS")
 
-data.frame(state = 1:dim(mh_results$final_states[-1,])[1],
+data.frame(state = 1:dim(mh_results$final_states)[1],
                  state_estimate=x_filtered_init,
                  real_state = data[,1]) %>% 
   ggplot()+
@@ -181,7 +224,7 @@ data.frame(state = 1:dim(mh_results$final_states[-1,])[1],
           plot.margin=grid::unit(c(0,0.3,0,0), "cm")
           ) 
 
-# ggsave("states_init.png",height = 5, width=8,units = "cm")
+# ggsave("Figures/states_init.png",height = 5, width=8,units = "cm")
 ```
 
 State estimates based on the particle estimates at iteration $50$.
@@ -192,7 +235,7 @@ State estimates based on the particle estimates at iteration $50$.
 
 x_filtered_at_iter_50 <- readRDS("Data/x_filtered_at_iter_50.RDS")
 
-data.frame(state = 1:dim(mh_results$final_states[-1,])[1],
+data.frame(state = 1:dim(mh_results$final_states)[1],
                  state_estimate=x_filtered_at_iter_50,
                  real_state = data[,1]) %>% 
   ggplot()+
@@ -221,7 +264,7 @@ State estimates based on the particle estimates at iteration $100$.
 x_filtered_at_iter_100 <- readRDS("Data/x_filtered_at_iter_100.RDS")
 
 
-data.frame(state = 1:dim(mh_results$final_states[-1,])[1],
+data.frame(state = 1:dim(mh_results$final_states)[1],
                  state_estimate=x_filtered_at_iter_100,
                  real_state = data[,1]) %>% 
   ggplot()+
@@ -242,8 +285,8 @@ data.frame(state = 1:dim(mh_results$final_states[-1,])[1],
 
 State estimates based on the final parameter estimates.
 ```{r, echo=FALSE}
-data.frame(state = 1:dim(mh_results$final_states[-1,])[1],
-                 mean_state_estimate=rowMeans(mh_results$final_states)[-1],
+data.frame(state = 1:dim(mh_results$final_states)[1],
+                 mean_state_estimate=rowMeans(mh_results$final_states),
                  real_state = data[,1]) %>% 
   ggplot()+
   geom_line(aes(x=state,y=mean_state_estimate), color = '#1ea896')+
