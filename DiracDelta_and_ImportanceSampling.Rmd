@@ -1,0 +1,356 @@
+---
+title: "Dirac Delta and Importance Sampling"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(latex2exp)
+```
+
+# Categorical Distribution PDF
+
+```{r}
+# We have k possible states
+k <- 5
+states <- c(1, 2, 3, 4, 5)
+probs  <- c(0.4, 0.05, 0.3, 0.15, 0.1)
+points <- data.frame(x=states, y=probs)
+pmf    <- data.frame(xstart=states,
+                     xend=states,
+                     ystart=rep(0, k),
+                     yend=probs)
+xlabels <- expression("x[1]", "x[2]", "x[3]", "x[4]", "x[5]")
+
+
+# PROBABILITY MASS FUNCTION
+p <- ggplot(data=points) + 
+  geom_point(aes(x=x, y=y), size=4) + 
+  geom_segment(data=pmf, aes(x=xstart, y=ystart, xend=xend, yend=yend)) + 
+  theme_minimal() + 
+  scale_x_continuous(limits=c(-0.01, 6), breaks=1:5, labels=parse(text=xlabels)) + 
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text=element_text(family="LM Roman 10", size=20),
+        axis.line=element_line(size = 1.0),
+        axis.title.y = element_text(angle=0, vjust=0.5, hjust=0.1),
+        axis.text.y=element_text(size=13)) + 
+  scale_y_continuous(limits=c(0, 1.05), expand=c(0,0), name=expression("P(x)"))
+p
+#ggsave("pmf.png", plot=p, dpi=500, device="png")
+```
+
+# Categorical Distribution CDF
+```{r}
+# CUMULATIVE MASS FUNCTION
+points$ycum <- cumsum(probs)
+cdf <- data.frame(xstart=c(0, states),
+                  xend=1:6,
+                  ystart=c(0, cumsum(probs)),
+                  yend=c(0, cumsum(probs)))
+emptypoints <- data.frame(x=states, y=c(0, cumsum(probs)[1:4]))
+
+pp <- ggplot(data=points) + 
+  geom_point(aes(x=x, y=ycum), size=4) + 
+  geom_segment(data=cdf, aes(x=xstart, y=ystart, xend=xend, yend=yend)) + 
+  geom_point(data=emptypoints, aes(x=x, y=y), shape=1, size=4) + 
+  theme_minimal() + 
+  scale_x_continuous(limits=c(-0.01, 6), breaks=1:5, labels=parse(text=xlabels)) + 
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text=element_text(family="LM Roman 10", size=20),
+        axis.line=element_line(size = 1.0),
+        axis.title.y = element_text(angle=0, vjust=0.5, hjust=0.1),
+        axis.text.y=element_text(size=13)) + 
+  scale_y_continuous(limits=c(0, 1.05), expand=c(0.05,0), name=expression("F(x)"))
+pp
+#ggsave("cdf.png", plot=pp, device="png", dpi=500)
+```
+
+
+# Empirical Probability Distribution Function
+
+```{r}
+# EMPIRICAL DISTRIBUTION FUNCTION
+# sample from N(0,1)
+set.seed(2)
+samples <- rnorm(n=5)
+cdf_probs <- cumsum(rep(1/5, 5))
+df <- data.frame(x=sort(samples), y=cdf_probs)
+emptypoints <- data.frame(x=sort(samples), y=c(0, cdf_probs[1:4]))
+cdf <- data.frame(xstart=c(-2, sort(samples)),
+                  xend=c(sort(samples), 2),
+                  ystart=c(0, cdf_probs),
+                  yend=c(0, cdf_probs))
+
+xlabels <- expression("x^{(1)}", "x^{(2)}", "x^{(3)}", "x^{(4)}", "x^{(5)}")
+ylabels <- c(0, cdf_probs)
+dotted_segment <- data.frame(xstart=sort(samples), 
+                             xend=sort(samples),
+                             ystart=ylabels[1:5],
+                             yend=ylabels[2:6])
+# first plot
+xnorm <- seq(-2, 2, length.out=100)
+normal <- data.frame(x=xnorm,
+                     y=dnorm(xnorm))
+cumulative <- data.frame(x=seq(-2, 2, by=0.01), y=pnorm(seq(-2, 2, by=0.01), 0, 1))
+sample_df <- data.frame(x=sort(samples), y=rep(0, 5))
+vertical_df <- data.frame(
+  x=sort(samples),
+  xend=sort(samples),
+  y=rep(0, 5),
+  yend=rep(1, 5)
+)
+arrow_ends <- data.frame(
+  x=sort(samples),
+  xend=sort(samples),
+  y=rep(0.97, 5),
+  yend=rep(1.0, 5)
+)
+horizontal_line <- data.frame(
+  x=c(-2, sort(samples)),
+  xend=c(sort(samples), 2),
+  y=rep(0, 6),
+  yend=rep(0, 6)
+)
+
+q <- ggplot() + 
+  geom_line(data=normal, aes(x=x, y=y)) + 
+  geom_segment(data=vertical_df, aes(x=x, y=y, xend=xend, yend=yend), linetype=2) +
+  geom_segment(data=arrow_ends, aes(x=x, y=y, xend=xend, yend=yend), 
+               arrow=arrow(length=unit(0.5, "cm"), type="closed")) +
+  geom_segment(data=horizontal_line, aes(x=x, y=y, xend=xend, yend=yend)) + 
+  geom_point(data=sample_df, aes(x=x, y=y), size=4, shape=21, stroke=1, fill="white") + 
+  theme_minimal() + 
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text=element_text(family="LM Roman 10", size=20),
+        axis.line=element_line(size = 1.0),
+        axis.title.y = element_text(angle=0, vjust=0.5, hjust=0.1)) + 
+  scale_x_continuous(limits=c(-2, 2), expand=c(0,0), breaks=sort(samples), labels=parse(text=xlabels)) + 
+  scale_y_continuous(limits=c(0.0, 1.05), breaks=ylabels, name=parse(text=expression("widehat(p)[N](x)")))
+q
+#ggsave("sample.png", plot=q, device="png", dpi=500)
+```
+
+
+# Empirical Cumulative Distribution Function
+```{r}
+qq <- ggplot(data=df) + 
+  geom_point(aes(x=x, y=y), size=4) + 
+  geom_point(data=emptypoints, aes(x=x, y=y), shape=1, size=4) + 
+  geom_line(data=cumulative, aes(x=x, y=y)) + 
+  geom_segment(data=cdf, aes(x=xstart, y=ystart, xend=xend, yend=yend)) + 
+  geom_segment(data=dotted_segment, aes(x=xstart, y=ystart, xend=xend, yend=yend), linetype=2) +
+  annotate("text", x=0.30, y=0.7, label="1/5", parse=TRUE) +
+  theme_minimal() + 
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text=element_text(family="LM Roman 10", size=20),
+        axis.line=element_line(size = 1.0),
+        axis.title.y = element_text(angle=0, vjust=0.5, hjust=0.1)) + 
+  scale_x_continuous(limits=c(-2, 2), expand=c(0,0), breaks=sort(samples), labels=parse(text=xlabels)) + 
+  scale_y_continuous(limits=c(0.0, 1.05), breaks=ylabels, name=parse(text=expression("widehat(F)[N](x)")))
+qq
+#ggsave("empirical.png", plot=qq, device="png", dpi=500)
+```
+
+
+# Step Function
+
+```{r}
+# STEP FUNCTION AND DIRAC DELTA FUNCTION
+step_df <- data.frame(xstart=c(-5.0, 0.0),
+                      xend=c(0.0, 5.0),
+                      ystart=c(0, 1.0),
+                      yend=c(0, 1.0))
+dot_above <- data.frame(x=0.0, y=1.0)
+dot_below <- data.frame(x=0.0, y=0.0)
+dotted_line <- data.frame(x=0.0,
+                          xend=0.0,
+                          y=0.0,
+                          yend=1.0)
+# step function
+step_plot <- ggplot(data=step_df) + 
+  geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend)) + 
+  geom_segment(data=dotted_line, aes(x=x, y=y, xend=xend, yend=yend), linetype=2) +
+  geom_point(data=dot_below, aes(x=x, y=y), shape=21, size=4, fill="white", stroke=1) + 
+  geom_point(data=dot_above, aes(x=x, y=y), size=4) + 
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text=element_text(family="LM Roman 10", size=20),
+        axis.line=element_line(size = 1.0),
+        axis.title.y = element_text(angle=0, vjust=0.5, hjust=0.1)) +
+  scale_x_continuous(name="x") + 
+  scale_y_continuous(name=TeX("$u_{0}(x)$")) + 
+  annotate("text", x=-2.5, y=0.07, label=TeX("$\\frac{d u_y(x)}{d x} = 0$", output="character"), parse=T, family="LM Roman 10") + 
+  annotate("text", x=2.5, y=0.95, label=TeX("$\\frac{d u_y(x)}{d x} = 0$", output="character"), parse=T, family="LM Roman 10") + 
+  annotate("text", x=1.0, y=0.5, label=TeX("$\\frac{d u_y(x)}{d x} = \\infty$", output="character"), parse=T, family="LM Roman 10")
+step_plot
+#ggsave("step_function.png", plot=step_plot, device="png", dpi=500)
+```
+
+# Dirac-Delta Function
+```{r}
+# delta function
+delta_df <- data.frame(xstart=c(-5.0, 0.0),
+                      xend=c(0.0, 5.0),
+                      ystart=c(0, 0.0),
+                      yend=c(0, 0.0))
+arrow_segment <- data.frame(x=0.0, 
+                            xend=0.0,
+                            y=0.97,
+                            yend=1.0)
+
+
+dd_plot <- ggplot(data=delta_df) + 
+  geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend)) +
+  geom_segment(data=dotted_line, aes(x=x, y=y, xend=xend, yend=yend), linetype=2) +
+  geom_segment(data=arrow_segment, aes(x=x, y=y, xend=xend, yend=yend), 
+               arrow=arrow(length=unit(0.5, "cm"), type="closed")) +
+  geom_point(data=dot_below, aes(x=x, y=y), shape=21, size=4, fill="white", stroke=1) +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text=element_text(family="LM Roman 10", size=20),
+        axis.line=element_line(size = 1.0),
+        axis.title.y = element_text(angle=0, vjust=0.5, hjust=0.1)) +
+  scale_x_continuous(name="x") + 
+  scale_y_continuous(name=TeX("$\\delta_{0}(x)$"), limits=c(0.0, 1.0)) +
+  annotate("text", x=0.6, y=0.98, label=TeX("$+\\infty$", output="character"), parse=T, family="LM Roman 10", size=6)
+dd_plot
+#ggsave("diracdelta.png", plot=dd_plot, device="png", dpi=500)
+```
+
+
+# Wrong Tail thickness
+
+```{r}
+lty1 = 2
+lty2 = 4
+set.seed(22222222)
+m <- 500
+index <- seq(-3, 3, length.out=m)
+target <- dnorm(index, sd=1.0)
+prop1 <- dt(index,2)
+# dof
+dof <- 2
+# sample from normal and from the t distribution
+normal_samples <- c(-2.85, -0.8, 0.3, 0.7) #rnorm(n=4)
+t_samples <- rt(n=4, df=dof)
+# evaluate the samples
+normal_samples_p <- dnorm(normal_samples)
+t_samples_p <- dt(t_samples, df=dof)
+w <- prop1/target
+# scale weights to be within 0.0 and 0.4
+df <- data.frame(x=index, y=target)
+df2 <- data.frame(x=index, y=prop1)
+df3 <- data.frame(x=index, y=(w - min(w)) / max(w))
+# points
+dfp_normal <- data.frame(x=normal_samples, y=-0.1)
+dfp_t <- data.frame(x=t_samples, y=-0.1)
+# compute the ESS
+ww <- dt(normal_samples, df=dof) / normal_samples_p
+ww <- ww / sum(ww)
+# font size
+fs=4
+# text
+lbl <- paste("N[ESS] ==", round(1 / sum(ww^2), 2))
+p <- ggplot(data=df) + 
+  geom_line(data=df, aes(x=x, y=y),color="grey80", size=1) + 
+  geom_line(data=df2, aes(x=x, y=y),size=1) +
+  geom_line(data=df3, aes(x=x, y=y), lty=lty1, color="grey50") +
+  geom_point(data=dfp_normal, aes(x=x, y=y), size=2) + 
+  annotate("text", x=-2.4, y=0.7, label=lbl, parse=TRUE, size=fs, family="LM Roman 10") +
+  annotate("text", x=normal_samples[1], y=-0.05, label=round(ww[1], 2), parse=T, size=fs, family="LM Roman 10") + 
+  annotate("text", x=normal_samples[2], y=-0.05, label=round(ww[2], 2), parse=T, size=fs, family="LM Roman 10") + 
+  annotate("text", x=normal_samples[3], y=-0.05, label=round(ww[3], 2), parse=T, size=fs, family="LM Roman 10") + 
+  annotate("text", x=normal_samples[4], y=-0.05, label=round(ww[4], 2), parse=T, size=fs, family="LM Roman 10") + 
+  theme_minimal() + 
+  theme(panel.grid = element_blank(),
+      panel.background = element_blank(),
+      text=element_text(family="LM Roman 10", size=20),
+      axis.line=element_line(size = 1.0),
+      axis.title.y = element_text(angle=0, vjust=0.5, hjust=0.1)) 
+p
+#ggsave("is.png", plot=p, device="png", dpi=500, width = 7.5, height=5)
+```
+
+
+# Correct Tail thickness
+```{r}
+#lty1 = 2
+#lty2 = 4
+#set.seed(22222222)
+#m <- 500
+#index <- seq(-3, 3, length.out=m)
+target <- dnorm(index, sd=1.0)
+prop1 <- dnorm(index, sd=0.96)
+# sample from normal and from the t distribution
+normal_samples <- c(-2.85, -0.8, 0.3, 0.7) #rnorm(n=4)
+#t_samples <- rt(n=4, df=2)
+# evaluate the samples
+normal_samples_p <- dnorm(normal_samples)
+#t_samples_p <- dt(t_samples, df=2)
+w <- prop1/target #target / prop1
+#w2 <- target / prop2
+# scale weights to be within 0.0 and 0.4
+df <- data.frame(x=index, y=target)
+df2 <- data.frame(x=index, y=prop1)
+df3 <- data.frame(x=index, y=(w - min(w)) / max(w))
+#df4 <- data.frame(x=index, y=(w2 - min(w2)) / max(w2))
+#df5 <- data.frame(x=index, y=prop2)
+# points
+dfp_normal <- data.frame(x=normal_samples, y=-0.1)
+#dfp_t <- data.frame(x=t_samples, y=-0.1)
+# compute the ESS
+ww <- dnorm(normal_samples) / dnorm(normal_samples, sd=0.96)
+ww <- ww / sum(ww)
+# rounded weights
+rw <- round(ww, 2)
+# font size
+fs = 4
+# text
+lbl <- paste("N[ESS] ==", round(1 / sum(ww^2), 2))
+pp <- ggplot(data=df) + 
+  geom_line(data=df, aes(x=x, y=y),color="grey80", size=1) + 
+  geom_line(data=df2, aes(x=x, y=y),size=1) +
+  geom_line(data=df3, aes(x=x, y=y), lty=lty1, color="grey50") +
+  geom_point(data=dfp_normal, aes(x=x, y=y), size=2) + 
+  annotate("text", x=-2.4, y=0.7, label=lbl, parse=TRUE, size=fs, family="LM Roman 10") +
+  annotate("text", x=normal_samples[1], y=-0.05, label=round(ww[1], 2), parse=T, size=fs, family="LM Roman 10") + 
+  annotate("text", x=normal_samples[2], y=-0.05, label=round(ww[2], 2), parse=T, size=fs, family="LM Roman 10") + 
+  annotate("text", x=normal_samples[3], y=-0.05, label=round(ww[3], 2), parse=T, size=fs, family="LM Roman 10") + 
+  annotate("text", x=normal_samples[4], y=-0.05, label=round(ww[4], 2), parse=T, size=fs, family="LM Roman 10") + 
+  theme_minimal() + 
+  theme(panel.grid = element_blank(),
+      panel.background = element_blank(),
+      text=element_text(family="LM Roman 10", size=20),
+      axis.line=element_line(size = 1.0),
+      axis.title.y = element_text(angle=0, vjust=0.5, hjust=0.1)) +
+  scale_y_continuous(limits=c(-0.105, 0.76))
+pp
+#ggsave("is_perfect.png", plot=pp, device="png", dpi=500, width = 7.5, height=5)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
