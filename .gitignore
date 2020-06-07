@@ -5,3 +5,5 @@
 SeqInference.Rproj
 *.o
 *.so
+Example_cache
+Example_files
