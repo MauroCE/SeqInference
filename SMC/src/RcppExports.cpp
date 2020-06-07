@@ -32,10 +32,28 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// pmmh
+List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, double alphastart, double beta);
+RcppExport SEXP _SMC_pmmh(SEXP thetastartSEXP, SEXP niterSEXP, SEXP NSEXP, SEXP ySEXP, SEXP burninSEXP, SEXP alphastartSEXP, SEXP betaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type thetastart(thetastartSEXP);
+    Rcpp::traits::input_parameter< int >::type niter(niterSEXP);
+    Rcpp::traits::input_parameter< int >::type N(NSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type y(ySEXP);
+    Rcpp::traits::input_parameter< int >::type burnin(burninSEXP);
+    Rcpp::traits::input_parameter< double >::type alphastart(alphastartSEXP);
+    Rcpp::traits::input_parameter< double >::type beta(betaSEXP);
+    rcpp_result_gen = Rcpp::wrap(pmmh(thetastart, niter, N, y, burnin, alphastart, beta));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_SMC_APF", (DL_FUNC) &_SMC_APF, 3},
     {"_SMC_BSF", (DL_FUNC) &_SMC_BSF, 3},
+    {"_SMC_pmmh", (DL_FUNC) &_SMC_pmmh, 7},
     {NULL, NULL, 0}
 };
 
