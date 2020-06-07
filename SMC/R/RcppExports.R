@@ -8,11 +8,12 @@
 #' @param obs A vector of observations to be filtered.
 #' @param num_particles A positive integer number of particles to be used
 #' in the simulation.
-#' @param param A vector of model parameters.
+#' @param param A vector of model parameters (alpha, beta, sigma).
 #' 
 #' @return A list containing a sample from the empirical distribution; the
-#' approximated marginal log-likelihood of the data; the filtered states.
-APF <- function(obs, num_particles, param) {
+#' approximated marginal log-likelihood of the data; the sampled particles 
+#' and their associated weights.
+APF_Cpp <- function(obs, num_particles, param) {
     .Call(`_SMC_APF`, obs, num_particles, param)
 }
 

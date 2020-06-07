@@ -17,11 +17,11 @@ class SS_Model {
     SS_Model(arma::colvec obs, int num_particles, arma::vec param) {
       this->_num_particles = num_particles;
       int tmax = obs.n_rows;
-      this->_particles = arma::zeros(tmax, num_particles); 
+      this->_particles = arma::zeros(tmax + 1, num_particles); 
       this->_obs = obs;
       this->_param = param;
       // Set x0:
-      double sd = sqrt(param(2) / (1 - param(0)));
+      double sd = sqrt(pow(param(2), 2) / (1 - pow(param(0), 2)));
       this->_particles.row(0) = Rcpp::as<arma::rowvec>(Rcpp::rnorm(num_particles, 0, sd));
     }
     
@@ -84,14 +84,16 @@ class SS_Model {
       return lik;
     }
     
-    arma::colvec filtered_states(arma::vec weights) {
-      arma::colvec filtered(this->_particles.n_rows);
-      int ncol = this->_particles.n_cols;
-      for (int i = 0; i < ncol; ++i) {
-        filtered = filtered + weights(i) * this->_particles.col(i);
-      }
-      return filtered;
-    }
+    // arma::colvec filtered_states(arma::vec weights) {
+    //   arma::colvec filtered(this->_particles.n_rows);
+    //   arma::colvec weight_vec(this->_particles.n_rows);
+    //   int ncol = this->_particles.n_cols;
+    //   for (int i = 0; i < ncol; ++i) {
+    //     weight_vec = weight_vec.fill(weights(i));
+    //     filtered = filtered + elem_mult(weight_vec, this->_particles.col(i));
+    //   }
+    //   return filtered;
+    // }
     
 };
 
@@ -118,36 +120,37 @@ double log_marginal(arma::vec weights, arma::vec aux_lik) { // Not the full marg
 //' @param obs A vector of observations to be filtered.
 //' @param num_particles A positive integer number of particles to be used
 //' in the simulation.
-//' @param param A vector of model parameters.
+//' @param param A vector of model parameters (alpha, beta, sigma).
 //' 
 //' @return A list containing a sample from the empirical distribution; the
-//' approximated marginal log-likelihood of the data; the filtered states.
-// [[Rcpp::export(name = "APF")]]
+//' approximated marginal log-likelihood of the data; the sampled particles 
+//' and their associated weights.
+// [[Rcpp::export(name = "APF_Cpp")]]
 Rcpp::List APF(arma::colvec obs, int num_particles, arma::vec param) {
   // INITIALISATION: (not sure if this is right...)
   SS_Model model(obs, num_particles, param);
-  arma::vec weights = normalize(model.aux_likelihoodhood(1, obs(1)));
+  arma::vec weights = model.aux_likelihoodhood(1, obs(0));
   
   // MAIN ITERATION:
   int tmax = obs.n_elem;
   arma::vec lik, aux_lik, parent_weights;
   arma::uvec resampled;
   double full_log_marginal = 0.0;
-  for (int t = 1; t < tmax; ++t) {
-    aux_lik = model.aux_likelihoodhood(t, obs(t));
+  for (int t = 1; t < tmax + 1; ++t) {
+    aux_lik = model.aux_likelihoodhood(t, obs(t - 1));
     full_log_marginal += log_marginal(weights, aux_lik);
+    weights = normalize(weights);
     parent_weights = normalize(elem_mult(weights, aux_lik));
     resampled = model.resample(t - 1, parent_weights);
     parent_weights = parent_weights.elem(resampled);
     weights = weights.elem(resampled);
     model.transition(t);
-    lik = model.likelihood(t, obs(t));
+    lik = model.likelihood(t, obs(t - 1));
     weights = update_weights(weights, parent_weights, lik);
-    weights = normalize(weights);
   }
   arma::colvec sampled_particle = model.sample(weights);
-  arma::colvec filtered = model.filtered_states(weights);
   return Rcpp::List::create(Rcpp::Named("sample") = sampled_particle,
                             Rcpp::Named("log_marginal") = full_log_marginal,
-                            Rcpp::Named("filtered_states") = filtered);
+                            Rcpp::Named("particles") = model.getParticles(),
+                            Rcpp::Named("weights") = weights);
 }
