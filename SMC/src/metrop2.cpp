@@ -90,16 +90,8 @@ class Metrop_Model {
     }
 };
 
-// arma::rowvec add_beta(arma::rowvec v) {
-//   arma::rowvec out(v.n_elem + 1);
-//   out(0) = v(0);
-//   out(1) = 1; // Beta is fixed at 1.
-//   out(2) = v(1);
-//   return out;
-// }
-
 // [[Rcpp::export(name = "pmmh2")]]
-arma::mat pmmh2(int tmax, arma::vec obs, int N, arma::rowvec initial, double sd) {
+List pmmh2(int tmax, arma::vec obs, int N, arma::rowvec initial, double sd) {
   
   // INITIALIZE:
   Metrop_Model mh(tmax, N, initial, sd);
@@ -130,9 +122,8 @@ arma::mat pmmh2(int tmax, arma::vec obs, int N, arma::rowvec initial, double sd)
       continue;
     } else {
       mh.reject(t);
-      
     }
   }
-  Rcout << "Acceptance: " << accept << std::endl;
-  return mh.getPchain();
+  return List::create(Named("chain") = mh.getPchain(),
+                      Named("Accepted") = accept);
 }

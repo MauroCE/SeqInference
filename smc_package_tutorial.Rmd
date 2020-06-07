@@ -1,0 +1,374 @@
+---
+title: 'APPENDX: SMC Package Tutorial'
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE, cache = TRUE}
+knitr::opts_chunk$set(echo = TRUE, warning = F)
+```
+
+```{r include = F}
+library(SMC)
+library(tidyverse)
+library(latex2exp)
+library(gridExtra)
+```
+
+As a part of our project we have written an R package, `SMC`, which is mostly
+written in C++ using the `Rcpp/RcppArmadillo` package. In this tutorial we
+provide an overview of the different algorithms implemented in the `SMC` 
+package. For a description of the algorithms used within this tutorial, we refer
+the reader to the primary report.
+
+The algorithms within `SMC` have been written in order to conduct analysis on
+data which can be modelled by a Stochastic Volatility Model (SVM):
+\begin{equation}
+X_t = \alpha X_{t-1} + \epsilon_t, \quad \epsilon \sim \mathcal{N}(0,1)
+\end{equation}
+\begin{equation}
+Y_t = \beta \text{exp}(X_t / 2) \zeta_t, \quad \zeta_t \sim \mathcal{N}(0,1)
+\end{equation}
+We start by defining our model parameters $\theta = (\alpha, \beta, \sigma)$ and
+generating synthetic data from the associated SVM.
+
+```{r}
+theta <- c(0.91, 1, 1)
+tmax <- 500
+set.seed(1234)
+data <- SMC::stochastic_volatility(tmax, theta)
+head(data)
+```
+
+```{r include=F}
+data_pl <- ggplot(data = cbind("t" = 1:tmax, data)) +
+           geom_line(aes(x = t, y = x), col = "black", size = 0.4) +
+           geom_point(aes(x = t, y = y), col = "grey40", alpha = 0.5, size = 0.3) +
+           labs(x = "time", y = " ") +
+           theme(panel.grid = element_blank(),
+                 panel.background = element_blank(),
+                 text = element_text(size=10),
+                 axis.line=element_line(size = 0.3),
+                 axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+                 axis.text = element_text(colour = "black"),
+                 aspect.ratio = 0.5,
+                 plot.margin=grid::unit(c(0,0.3,0,0), "cm"),
+                )
+pdf("Figures/Tutorial/synth_data.pdf")
+data_pl
+dev.off()
+caption1 <- paste(
+  "Synthetic data generated according to the Stochastic Volatility model with",
+  "model parameters theta = (0.91, 1, 1)."
+)
+```
+
+```{r, echo = F, fig.cap=caption1}
+data_pl
+```
+
+Figure 1 shows a plot of the data generated using
+`SMC::stochastic_volatility()`. One can clearly see that the volatility of the
+observations, represented by the grey points, decreases as the states decrease.
+In practice we do not have access to the unknown states $x_{0:t}$, however we 
+can estimate them through the use of the **Bootstrap Partcile Filter** 
+(BSF) and the **Auxiliary Particle Filter**.
+
+```{r}
+obs <- data$y
+N <- 400 # We use 400 particles.
+BSF_fit <- SMC::BSF(obs, N, theta) # Assumes we know the true model paramters.
+APF_fit <- SMC::APF(obs, N, theta)
+
+# Compute the MSE:
+cat("Bootstrap MSE: ", sum((BSF_fit$states[-1] - data$x)^2), "\n",
+    "Auxiliary MSE: ", sum((APF_fit$states[-1] - data$x)^2), sep = "")
+```
+
+```{r include = F}
+filter_data <- data.frame(
+  "t" = 1:tmax,
+  "x" = data$x,
+  "bsf" = BSF_fit$states[-1],
+  "apf" = APF_fit$states[-1]
+)
+bsf_pl <- ggplot(data = filter_data) + 
+          geom_line(aes(x = t, y = x), col = "black", size = 0.2) +
+          geom_line(aes(x = t, y = bsf), col = "#1ea896", size = 0.2) +
+          labs(title = "BSF",x = "time", y = " ") +
+          theme(panel.grid = element_blank(),
+                panel.background = element_blank(),
+                text = element_text(size=10),
+                axis.line=element_line(size = 0.3),
+                axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+                axis.text = element_text(colour = "black"),
+                aspect.ratio = 0.5,
+                plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+              )
+apf_pl <- ggplot(data = filter_data) + 
+          geom_line(aes(x = t, y = x), col = "black", size = 0.2) +
+          geom_line(aes(x = t, y = apf), col = "#1ea896", size = 0.2) +
+          labs(title = "APF", x = "time", y = " ") +
+          theme(panel.grid = element_blank(),
+                panel.background = element_blank(),
+                text = element_text(size=10),
+                axis.line=element_line(size = 0.3),
+                axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+                axis.text = element_text(colour = "black"),
+                aspect.ratio = 0.5,
+                plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+              )
+pdf("Figures/Tutorial/particle_fit.pdf")
+grid.arrange(bsf_pl, apf_pl, nrow = 1)
+dev.off()
+caption2 <- paste("Results of running running the BSF and APF on the synthetic", 
+                  "data. The true states are given by the solid black line,",
+                  "and the filtered states are given by the dark green line.")
+```
+
+```{r, echo = F, fig.cap=caption2}
+grid.arrange(bsf_pl, apf_pl, nrow = 1)
+```
+
+Figure 2 shows the filtered states plotted against the true synthetic states.
+In this context there does not seem to be a huge difference in performance. We
+have of course taken for granted that we know the true model parameters used to
+generate the data. In practice we often must estimate the model parameters from 
+the data. Working in the offline setting, we can do this using a Pseudo-Marginal
+Metropolis Hastings (PMMH) algorithm. In short, one can use the above particle filters
+to approximate the marinal likelihood of the observations
+\begin{equation}
+\hat{P}_N (y_{0:t} | \boldsymbol{\theta}) \approx p(y_{0:t} | \boldsymbol{\theta}).
+\end{equation}
+We can incorporate this approximation into the Metropolis Hastings algorithm,
+and use it to accept/reject proposed values. For further details of this 
+algorithm we once again refer the reader to the main report.
+
+There are two versions of PMMH algorithm implemented within the `SMC` package.
+The first, `pmmh1`, estimates parameters $\alpha$ and $\sigma$ **only**, using 
+the prior/proposal
+\begin{equation}
+p(\alpha) = \text{Beta}(6, \frac{6}{0.8} - 6), \quad q(\alpha^*|\alpha) = 
+\text{Beta}(100, \frac{100}{\alpha} - 100)
+\end{equation}
+\begin{equation}
+p(\sigma) = \text{Gamma}(5, \frac{0.5}{5}), \quad q(\sigma^*|\sigma) = 
+\text{Beta}(200, \frac{\sigma}{200}).
+\end{equation}
+The second, `pmmh2` estimates all three parameters $\theta = (\alpha, \beta, \sigma)$ 
+and uses the prior
+\begin{equation}
+p(\alpha) = \text{Trunc-Normal}_{(-1,1)}(0.9, 0.5)
+\end{equation}
+\begin{equation}
+p(\beta) = p(\sigma) = \text{Gamma}(2, 2)
+\end{equation}
+with the proposal
+\begin{equation}
+q(\theta^* | \theta) = \mathcal{N}(\theta, \sigma_{\text{prop}} \boldsymbol{I}).
+\end{equation}
+Since all of the parameters are bounded ($\sigma$ and $\beta$ must be positive; 
+$\|\alpha\| < 1$), we have applied reflection at each of their respective
+boundaries. This ensures proposals are only ever in pheasible regions. In this
+tutorial we will show the use of `pmmh2`:
+
+```{r eval = F}
+pmmh2_fit <- SMC::pmmh2(10000, data$y, 400, c(0.5, 0.5, 0.5), 0.045)
+```
+
+```{r include = F}
+#saveRDS(pmmh2_fit, 'Data/Tutorial/pmmh2_fit.RDS')
+pmmh2_fit <- readRDS("Data/Tutorial/pmmh2_fit.RDS")
+```
+
+```{r}
+acceptance_rate <- pmmh2_fit$Accepted / nrow(pmmh2_fit$chain)
+cat("Acceptance rate: ", acceptance_rate * 100, "%", sep = "")
+```
+
+The acceptance rate should ideally be around 23.4%. Let's examine the trace 
+plots:
+
+```{r include = F}
+tr_plot <- function(chains, i, pname) {
+  df <- data.frame("t" = 1:nrow(chains), "y" = chains[,i])
+  pl <- ggplot(data = df) +
+        geom_line(aes(x = t, y = y), color = "#264653", size = 0.4) +
+        geom_hline(yintercept = theta[i],linetype = 'dashed', size = 0.4)+
+        labs(y = pname) +
+        theme(panel.grid = element_blank(),
+              panel.background = element_blank(),
+              text = element_text(size=10),
+              axis.line=element_line(size = 0.3),
+              axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+              axis.text = element_text(colour = "black"),
+              aspect.ratio = 0.5,
+              plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+              )
+  return(pl)
+}
+alpha_pl <- tr_plot(pmmh2_fit$chain, 1, "alpha")
+beta_pl <- tr_plot(pmmh2_fit$chain, 2, "beta")
+sigma_pl <- tr_plot(pmmh2_fit$chain, 3, "sigma")
+
+pdf("Figures/Tutorial/alpha_trace.pdf")
+alpha_pl
+pdf("Figures/Tutorial/beta_trace.pdf")
+beta_pl
+pdf("Figures/Tutorial/sigma_trace.pdf")
+sigma_pl
+dev.off()
+caption3 <- "Trace plots for each model parameter; generated using pmmh2()."
+```
+
+```{r, echo = F, fig.cap=caption3}
+grid.arrange(
+  alpha_pl,
+  beta_pl,
+  sigma_pl,
+  nrow = 1
+)
+```
+
+The trace plots indicate that each parameters has converged to its stationary
+regime. The ACF plots should also decay to $0$ (here we take a burn in of $500$
+iterations).
+
+```{r include = F}
+burn_in <- 5000
+chain <- pmmh2_fit$chain[-(1:burn_in),]
+ggplot.corr <- function(data, pname, lag.max = 100, ci = 0.95, large.sample.size = TRUE, horizontal = TRUE,...) {
+  
+  if(horizontal == TRUE) {numofrow <- 1} else {numofrow <- 2}
+  
+  list.acf <- acf(data, lag.max = lag.max, type = "correlation", plot = FALSE)
+  N <- as.numeric(list.acf$n.used)
+  df1 <- data.frame(lag = list.acf$lag, acf = list.acf$acf)
+  df1$lag.acf <- dplyr::lag(df1$acf, default = 0)
+  df1$lag.acf[2] <- 0
+  df1$lag.acf.cumsum <- cumsum((df1$lag.acf)^2)
+  df1$acfstd <- sqrt(1/N * (1 + 2 * df1$lag.acf.cumsum))
+  df1$acfstd[1] <- 0
+  df1 <- select(df1, lag, acf, acfstd)
+  
+  list.pacf <- acf(data, lag.max = lag.max, type = "partial", plot = FALSE)
+  df2 <- data.frame(lag = list.pacf$lag,pacf = list.pacf$acf)
+  df2$pacfstd <- sqrt(1/N)
+    plot.acf <- ggplot(data = df1, aes( x = lag, y = acf)) +
+    geom_col(color="#264653", width = 0.01) +
+    geom_hline(yintercept = qnorm((1+ci)/2)/sqrt(N), 
+               colour = "black",
+               linetype = "dashed",
+               size=0.4) + 
+    geom_hline(yintercept = - qnorm((1+ci)/2)/sqrt(N), 
+               colour = "black",
+               linetype = "dashed",
+               size=0.4) + 
+    scale_y_continuous(name = element_blank(), 
+                       limits = c(min(df1$acf,df2$pacf),1)) +
+    theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) + 
+    ggtitle(pname)
+  plot.acf
+}
+acf_alpha <- ggplot.corr(chain[,1], "alpha", lag.max = 200, large.sample.size = FALSE)
+acf_beta <- ggplot.corr(chain[,2], "beta", lag.max = 200, large.sample.size = FALSE)
+acf_sigma <- ggplot.corr(chain[,3], "sigma", lag.max = 200, large.sample.size = FALSE)
+
+pdf("Figures/Tutorial/acf_alpha.pdf")
+acf_alpha
+pdf("Figures/Tutorial/acf_beta.pdf")
+acf_beta
+pdf("Figures/Tutorial/acf_sigma.pdf")
+acf_sigma
+dev.off()
+caption4 <- "ACF plots for each model parameter; generated using pmmh2()."
+```
+
+```{r, echo = F, fig.cap=caption4}
+grid.arrange(
+  acf_alpha, 
+  acf_beta,
+  acf_sigma,
+  nrow = 1
+)
+```
+
+And finally we can plot a histogram of the approximated posterior samples:
+
+```{r include=F}
+param = theta
+samples = as.data.frame(chain)
+colnames(samples) = c("alpha", "beta", "sigma")
+alpha_posterior <- ggplot(data = samples)+
+  geom_histogram(aes(alpha), bins = 50, color = "#264653", fill="#264653",size = 0.4,alpha=0.4)+
+  geom_vline(xintercept = param[1],linetype = 'dashed',size = 0.4)+
+  labs(x = expression(alpha), y="")+
+  scale_x_continuous(limits=c(0,1),breaks=c(seq(0,1,by=0.2),param[1]),labels=c(seq(0,1,by=0.2),param[1]))+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+
+beta_posterior <- ggplot(data = samples)+
+  geom_histogram(aes(beta), bins=50, color = "#e76f51", fill="#e76f51",size = 0.4,alpha=0.4)+
+  geom_vline(xintercept = param[2],linetype = 'dashed',size = 0.4)+
+  labs(x = expression(sigma),y="")+
+  scale_x_continuous(limits=c(0.5,2.5),breaks=c(seq(0.5,2.5,by=0.25),param[3]),labels=c(seq(0.5,2.5,by=0.25),param[3]))+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+
+sigma_posterior <- ggplot(data = samples)+
+  geom_histogram(aes(sigma), bins=50, color = "#e76f51", fill="#e76f51",size = 0.4,alpha=0.4)+
+  geom_vline(xintercept = param[3],linetype = 'dashed',size = 0.4)+
+  labs(x = expression(beta),y="")+
+  scale_x_continuous(limits=c(0.5,2.5),breaks=c(seq(0.5,2.5,by=0.25),param[3]),labels=c(seq(0.5,2.5,by=0.25),param[3]))+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+```
+
+```{r include = F}
+pdf("Figures/Tutorial/posterior_alpha.pdf")
+alpha_posterior
+pdf("Figures/Tutorial/posterior_beta.pdf")
+beta_posterior
+pdf("Figures/Tutorial/posterior_sigma.pdf")
+sigma_posterior
+```
+
+```{r echo=F}
+grid.arrange(
+  alpha_posterior,
+  beta_posterior,
+  sigma_posterior,
+  nrow = 1
+)
+```

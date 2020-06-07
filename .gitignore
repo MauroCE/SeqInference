@@ -7,3 +7,5 @@ SeqInference.Rproj
 *.so
 Example_cache
 Example_files
+smc_package_tutorial_cache
+smc_package_tutorial_files

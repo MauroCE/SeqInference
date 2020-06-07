@@ -50,7 +50,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // pmmh2
-arma::mat pmmh2(int tmax, arma::vec obs, int N, arma::rowvec initial, double sd);
+List pmmh2(int tmax, arma::vec obs, int N, arma::rowvec initial, double sd);
 RcppExport SEXP _SMC_pmmh2(SEXP tmaxSEXP, SEXP obsSEXP, SEXP NSEXP, SEXP initialSEXP, SEXP sdSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
