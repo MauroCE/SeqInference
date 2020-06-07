@@ -13,6 +13,20 @@
 #' @return A list containing a sample from the empirical distribution; the
 #' approximated marginal log-likelihood of the data; the filtered states.
 APF <- function(obs, num_particles, param) {
-    .Call(`_SMC_APF_r`, obs, num_particles, param)
+    .Call(`_SMC_APF`, obs, num_particles, param)
+}
+
+#' Bootstrap Particle Filter
+#' 
+#' @param obs A vector of observations to be filtered.
+#' @param N The number of particles to be used in the filter.
+#' @param param The model parameters to be used within the filter. These are
+#' passed in the form c(alpha, beta, sigma).
+#' 
+#' @return A list containing the filtered states; a sample from the posterior
+#' distribution; the log-marginal distribution of the observations.
+#' 
+BSF <- function(obs, N, param) {
+    .Call(`_SMC_BSF`, obs, N, param)
 }
 
