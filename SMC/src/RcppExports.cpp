@@ -49,11 +49,27 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// pmmh2
+arma::mat pmmh2(int tmax, arma::vec obs, int N, arma::rowvec initial, double sd);
+RcppExport SEXP _SMC_pmmh2(SEXP tmaxSEXP, SEXP obsSEXP, SEXP NSEXP, SEXP initialSEXP, SEXP sdSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type tmax(tmaxSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type obs(obsSEXP);
+    Rcpp::traits::input_parameter< int >::type N(NSEXP);
+    Rcpp::traits::input_parameter< arma::rowvec >::type initial(initialSEXP);
+    Rcpp::traits::input_parameter< double >::type sd(sdSEXP);
+    rcpp_result_gen = Rcpp::wrap(pmmh2(tmax, obs, N, initial, sd));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_SMC_APF", (DL_FUNC) &_SMC_APF, 3},
     {"_SMC_BSF", (DL_FUNC) &_SMC_BSF, 3},
     {"_SMC_pmmh", (DL_FUNC) &_SMC_pmmh, 7},
+    {"_SMC_pmmh2", (DL_FUNC) &_SMC_pmmh2, 5},
     {NULL, NULL, 0}
 };
 

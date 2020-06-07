@@ -83,18 +83,6 @@ class SS_Model {
       }
       return lik;
     }
-    
-    // arma::colvec filtered_states(arma::vec weights) {
-    //   arma::colvec filtered(this->_particles.n_rows);
-    //   arma::colvec weight_vec(this->_particles.n_rows);
-    //   int ncol = this->_particles.n_cols;
-    //   for (int i = 0; i < ncol; ++i) {
-    //     weight_vec = weight_vec.fill(weights(i));
-    //     filtered = filtered + elem_mult(weight_vec, this->_particles.col(i));
-    //   }
-    //   return filtered;
-    // }
-    
 };
 
 arma::vec update_weights(arma::vec weights, arma::vec parent_weights, arma::vec lik) {

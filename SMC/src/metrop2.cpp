@@ -25,11 +25,9 @@ class Metrop_Model {
       // Alpha:
       lim(0,0) = -1;
       lim(0,1) = 1;
-      // Beta:
+      // Sigma:
       lim(1,0) = 0;
       lim(1,1) = arma::datum::inf;
-      // Sigma:
-      lim.row(2) = lim.row(1);
       this->_limits = lim;
     }
     
@@ -46,17 +44,15 @@ class Metrop_Model {
     }
     
     double prior(arma::rowvec param) {
-      // Beta and Sigma follow gamma distribution.
+      // Sigma follows gamma distribution.
       double out = 0.0;
-      NumericVector beta(1);
       NumericVector sigma(1);
-      beta[0] = param(1);
-      sigma[0] = param(2);
-      out += dgamma(beta, 5, 10, true)[0] + dgamma(sigma, 20, 20, true)[0];
+      sigma[0] = param(1);
+      out += dgamma(sigma, 2, 2, true)[0];
       
       // Alpha follows truncated normal prior.
       double alpha = param(0);
-      out += log(trunc_dnorm(alpha, 0.9, 0.05, this->_limits.row(0)));
+      out += log(trunc_dnorm(alpha, 0.9, 0.5, this->_limits.row(0)));
       return out;
     }
     
@@ -87,11 +83,20 @@ class Metrop_Model {
     }
 };
 
-arma::mat pseudo_mh(int tmax, arma::vec obs, int N, arma::rowvec initial, double sd) {
+arma::rowvec add_beta(arma::rowvec v) {
+  arma::rowvec out(v.n_elem + 1);
+  out(0) = v(0);
+  out(1) = 1; // Beta is fixed at 1.
+  out(2) = v(1);
+  return out;
+}
+
+// [[Rcpp::export(name = "pmmh2")]]
+arma::mat pmmh2(int tmax, arma::vec obs, int N, arma::rowvec initial, double sd) {
   
   // INITIALIZE:
   Metrop_Model mh(tmax, N, initial, sd);
-  List result = BSF(obs, N, initial);
+  List result = BSF(obs, N, add_beta(initial));
   double lmarg0 = as<double>(result["log_marginal"]);
   
   arma::rowvec p0, p1;
@@ -105,7 +110,7 @@ arma::mat pseudo_mh(int tmax, arma::vec obs, int N, arma::rowvec initial, double
     mh.propose(t);
     p0 = mh.getParam(t - 1);
     p1 = mh.getParam(t);
-    result = BSF(obs, N, p1);
+    result = BSF(obs, N, add_beta(p1));
     prior0 = mh.prior(p0);
     prior1 = mh.prior(p1);
     lmarg1 = as<double>(result["log_marginal"]);
@@ -114,9 +119,11 @@ arma::mat pseudo_mh(int tmax, arma::vec obs, int N, arma::rowvec initial, double
     prob = numer - denom;
     if (log(u[t - 1]) <= prob) {
       accept += 1;
+      lmarg0 = lmarg1;
       continue;
     } else {
       mh.reject(t);
+      
     }
   }
   Rcout << "Acceptance: " << accept << std::endl;

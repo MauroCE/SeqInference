@@ -49,3 +49,7 @@ pmmh1 <- function(thetastart, niter, N, y, burnin, alphastart, beta) {
     .Call(`_SMC_pmmh`, thetastart, niter, N, y, burnin, alphastart, beta)
 }
 
+pmmh2 <- function(tmax, obs, N, initial, sd) {
+    .Call(`_SMC_pmmh2`, tmax, obs, N, initial, sd)
+}
+
