@@ -1,0 +1,381 @@
+---
+title: "PMMH Application to Stochastic Volatility Model"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+library(Rcpp)
+library(ggplot2)
+library(latex2exp)
+library(dplyr)
+library(tidyr)
+```
+
+## Simulate Dataset
+
+#### Prior Distribution
+```{r}
+prior_function <- function(n=1, alpha, sigma) rnorm(n, 0.0, sigma / sqrt((1 - alpha^2)))
+```
+
+#### Transition Function
+```{r}
+transition_function <- function(x, n=1, alpha, sigma) rnorm(n, mean=alpha*x, sd=sigma)
+```
+
+#### Emission Function and Likelihood Function
+```{r}
+emission_function <- function(x, beta) rnorm(n=1, mean=0, sd=beta*exp(x/2))
+
+likelihood_function <- function(y, x, beta) dnorm(x=y, mean=0, sd=beta*exp(x/2))
+```
+
+#### Data Generation
+```{r}
+set.seed(192837465)
+alpha_true <- 0.91
+sigma_true <- 1.0
+beta_true  <- 1
+tmax <- 500
+data <- matrix(0, nrow=(tmax+1), ncol=2)
+data[1, 1] <- prior_function(n=1, alpha = alpha_true, sigma = sigma_true)
+data[1, 2] <- emission_function(data[1, 1], beta = beta_true)
+for (i in 2:(tmax+1)){
+  data[i, 1] <- transition_function(x=data[i-1, 1], n=1, alpha = alpha_true, sigma = sigma_true)
+  data[i, 2] <- emission_function(data[i, 1], beta = beta_true)
+}
+
+#saveRDS(data,"simulated_data.RDS") # save dataset
+```
+
+## PMMH settings used for producing the plots.
+* niter = 800
+* N = 300
+* alpha_init: 0.3
+* alpha_prop: beta(1, 100, 100/thetagiven - 100)
+* alpha_prior: beta(6, 6/0.8 - 6)
+* sigma_init: 0.5
+* sigma_prop: gamma(1, 200, thetagiven/200)
+* sigma_prior: gamma(theta, 5, 0.5/5
+
+Source the PMMH file.
+```{r eval=FALSE}
+sourceCpp("bf_cpp_alpha.cpp")
+```
+
+Run the algorithm with the settings described above and save the output for future use.
+```{r eval = FALSE}
+N <- 300
+out <- pmmh_cpp_bf(thetastart = 0.5,
+                   niter=800,
+                   N=N,
+                   y=y,
+                   burnin=0,
+                   alpha = 0.3,
+                   beta = beta_true)
+
+# saveRDS(out, 'really_good_output.RDS')
+```
+
+Load saved data and PMH output.
+```{r}
+data <- readRDS("simulated_data.RDS")
+y <- data[-1, 2]
+out <- readRDS('really_good_output.RDS')
+```
+
+Compute the mean of the parameter estimates from iteration $200$ to $800$.
+```{r}
+# sigma
+mean(out$samples[200:800])
+
+# alpha
+mean(out$alphasamples[200:800])
+```
+
+
+### Plots of the states and observations
+```{r , echo=FALSE}
+df <- data.frame(states=1:dim(data)[1],x=data[,1],y=data[,2])
+
+ggplot(data = df)+
+  geom_line(aes(x=states,y=x),color = "black", size = 0.4)+
+  labs(x="time",y = "x")+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+
+# ggsave("true_x.png",height = 5, width=8,units = "cm")
+```
+
+```{r echo=FALSE}
+ggplot(data = df)+
+  geom_line(aes(x=states,y=y),color = "black", size = 0.4)+
+  labs(x="time",y = "y")+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+
+# ggsave("true_y.png",height = 5, width=8,units = "cm")
+```
+
+### Trace plots
+```{r, echo=FALSE}
+samples <- data.frame(iteration = 1:length(out$samples),
+                      alpha=out$alphasamples,
+                      sigma=out$samples)
+
+ggplot(data = samples, aes(x = iteration, y = alpha))+
+  geom_line(color = "#264653", size = 0.4)+
+  geom_hline(yintercept = alpha_true,linetype = 'dashed', size = 0.4)+
+  labs(y = expression(alpha))+
+  scale_y_continuous(limits=c(0,1),breaks=c(seq(0,1,by=0.2),alpha_true),labels=c(seq(0,1,by=0.2),alpha_true))+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+
+# ggsave("trace_alpha.png",height = 5, width=8,units = "cm")
+
+ggplot(data = samples, aes(x = iteration, y = sigma))+
+  geom_line(color = "#e76f51", size = 0.4)+
+  geom_hline(yintercept = sigma_true, linetype = 'dashed', size = 0.4)+
+  labs(y = expression(sigma))+
+  scale_y_continuous(limits=c(0.5,2.5),breaks=seq(0.5,2.5,by=0.25),labels=seq(0.5,2.5,by=0.25))+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+
+# ggsave("trace_sigma.png",height = 5, width=8,units = "cm")
+```
+
+### Posterior estimates
+```{r, echo=FALSE}
+ggplot(data = samples)+
+  geom_histogram(aes(alpha), bins = 25, color = "#264653", fill="#264653",size = 0.4,alpha=0.4)+
+  geom_vline(xintercept = alpha_true,linetype = 'dashed',size = 0.4)+
+  labs(x = expression(alpha), y="")+
+  scale_x_continuous(limits=c(0,1),breaks=c(seq(0,1,by=0.2),alpha_true),labels=c(seq(0,1,by=0.2),alpha_true))+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+# ggsave("posterior_alpha.png",height = 5, width=8,units = "cm")
+
+ggplot(data = samples)+
+  geom_histogram(aes(sigma), bins=25, color = "#e76f51", fill="#e76f51",size = 0.4,alpha=0.4)+
+  geom_vline(xintercept = sigma_true,linetype = 'dashed',size = 0.4)+
+  labs(x = expression(sigma),y="")+
+  scale_x_continuous(limits=c(0.5,2.5),breaks=c(seq(0.5,2.5,by=0.25),sigma_true),labels=c(seq(0.5,2.5,by=0.25),sigma_true))+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+# ggsave("posterior_sigma.png",height = 5, width=8,units = "cm")
+```
+
+### Plots of state estimates at different stages of the PMMH
+
+State estimates based on the the initial parameter values.
+```{r, echo=FALSE}
+# x_filtered_init <- bf_cpp(y, N, beta = beta_true, alpha = 0.3, sigma = 0.5)$filtered_states
+# saveRDS(x_filtered_init, "x_filtered_init.RDS")
+x_filtered_init <- readRDS("x_filtered_init.RDS")
+
+data.frame(state = 1:dim(out$final_states)[1],
+                 state_estimate=x_filtered_init,
+                 real_state = data[,1]) %>% 
+  ggplot()+
+    geom_line(aes(x=state,y=state_estimate), color = '#1ea896', size=0.4)+
+    geom_line(aes(x=state,y=real_state), size=0.4)+
+    labs(x="time",y="state")+
+    theme(panel.grid = element_blank(),
+          panel.background = element_blank(),
+          text = element_text(family="LM Roman 10", size=10),
+          axis.line=element_line(size = 0.3),
+          axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+          axis.text = element_text(colour = "black"),
+          aspect.ratio = 0.5,
+          plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+          ) 
+
+# ggsave("states_init.png",height = 5, width=8,units = "cm")
+```
+
+State estimates based on the particle estimates at iteration $50$.
+```{r, echo=FALSE}
+# x_filtered_at_iter_50 <- bf_cpp(y, N, beta = beta_true, alpha = samples$alpha[50], sigma = samples$sigma[50])$filtered_states
+# saveRDS(x_filtered_at_iter_50, "x_filtered_at_iter_50.RDS")
+
+x_filtered_at_iter_50 <- readRDS("x_filtered_at_iter_50.RDS")
+
+data.frame(state = 1:dim(out$final_states)[1],
+                 state_estimate=x_filtered_at_iter_50,
+                 real_state = data[,1]) %>% 
+  ggplot()+
+  geom_line(aes(x=state,y=state_estimate), color = '#1ea896')+
+  geom_line(aes(x=state,y=real_state))+
+  labs(x="time",y="state")+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+
+# ggsave("states_50.png",height = 5, width=8,units = "cm")
+```
+
+State estimates based on the particle estimates at iteration $100$.
+```{r, echo=FALSE}
+# x_filtered_at_iter_100 <- bf_cpp(y, N, beta = beta_true, alpha = samples$alpha[100], sigma = samples$sigma[100])$filtered_states
+# saveRDS(x_filtered_at_iter_100, "x_filtered_at_iter_100.RDS")
+
+x_filtered_at_iter_100 <- readRDS("x_filtered_at_iter_100.RDS")
+
+
+data.frame(state = 1:dim(out$final_states)[1],
+                 state_estimate=x_filtered_at_iter_100,
+                 real_state = data[,1]) %>% 
+  ggplot()+
+  geom_line(aes(x=state,y=state_estimate), color = '#1ea896')+
+  geom_line(aes(x=state,y=real_state))+
+    labs(x="time",y="state")+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        ) 
+# ggsave("states_100.png",height = 5, width=8,units = "cm")
+```
+
+State estimates based on the final parameter estimates.
+```{r, echo=FALSE}
+data.frame(state = 1:dim(out$final_states)[1],
+                 mean_state_estimate=apply(out$final_states, 1, mean),
+                 real_state = data[,1]) %>% 
+  ggplot()+
+  geom_line(aes(x=state,y=mean_state_estimate), color = '#1ea896')+
+  geom_line(aes(x=state,y=real_state))+
+    labs(x="time",y="state")+
+  theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        )  
+# ggsave("states_final.png",height = 5, width=8,units = "cm")
+```
+
+
+```{r, echo=FALSE}
+ggplot.corr <- function(data, lag.max = 100, ci = 0.95, large.sample.size = TRUE, horizontal = TRUE,...) {
+  
+  if(horizontal == TRUE) {numofrow <- 1} else {numofrow <- 2}
+  
+  list.acf <- acf(data, lag.max = lag.max, type = "correlation", plot = FALSE)
+  N <- as.numeric(list.acf$n.used)
+  df1 <- data.frame(lag = list.acf$lag, acf = list.acf$acf)
+  df1$lag.acf <- dplyr::lag(df1$acf, default = 0)
+  df1$lag.acf[2] <- 0
+  df1$lag.acf.cumsum <- cumsum((df1$lag.acf)^2)
+  df1$acfstd <- sqrt(1/N * (1 + 2 * df1$lag.acf.cumsum))
+  df1$acfstd[1] <- 0
+  df1 <- select(df1, lag, acf, acfstd)
+  
+  list.pacf <- acf(data, lag.max = lag.max, type = "partial", plot = FALSE)
+  df2 <- data.frame(lag = list.pacf$lag,pacf = list.pacf$acf)
+  df2$pacfstd <- sqrt(1/N)
+    plot.acf <- ggplot(data = df1, aes( x = lag, y = acf)) +
+    geom_col(color="#264653", width = 0.01) +
+    geom_hline(yintercept = qnorm((1+ci)/2)/sqrt(N), 
+               colour = "black",
+               linetype = "dashed",
+               size=0.4) + 
+    geom_hline(yintercept = - qnorm((1+ci)/2)/sqrt(N), 
+               colour = "black",
+               linetype = "dashed",
+               size=0.4) + 
+    scale_x_continuous(breaks = seq(0,max(df1$lag),10)) +
+    scale_y_continuous(name = element_blank(), 
+                       limits = c(min(df1$acf,df2$pacf),1)) +
+    theme(panel.grid = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family="LM Roman 10", size=10),
+        axis.line=element_line(size = 0.3),
+        axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+        axis.text = element_text(colour = "black"),
+        aspect.ratio = 0.5,
+        plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+        )
+  plot.acf
+}
+```
+
+
+## Auto-correlation plots
+```{r , echo=FALSE}
+## compute acfs
+acf_alpha <- acf(samples$alpha, plot = FALSE, lag.max=100)
+acf_sigma <- acf(samples$sigma, plot = FALSE, lag.max=100)
+```
+
+ACF for $\alpha$
+
+```{r echo=FALSE}
+ggplot.corr(samples$alpha,large.sample.size = FALSE)
+#ggsave("acf_alpha.png",height = 5, width=8,units = "cm")
+```
+
+ACF for $\sigma$
+
+```{r echo=FALSE}
+ggplot.corr(samples$sigma,large.sample.size = FALSE)
+#ggsave("acf_sigma.png",height = 5, width=8,units = "cm")
+```
+

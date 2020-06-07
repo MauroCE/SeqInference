@@ -48,6 +48,7 @@ List bf_cpp(NumericVector y, int N, double beta, double alpha, double sigma) {
     weightsnorm.row(t) = logweights.row(t) / sumweights;
     log_marginal += maxlogw + log(sumweights) - log(N);
     // Sample indices based on weights and use them to resample the columns of particle
+    //std::cout <<"iter "<<t<< " hdifhdif" << (NumericVector)weightsnorm.row(t) << std::endl;
     ix = sample(N, N, true, (NumericVector)weightsnorm.row(t));
     for (int j=0; j < N; j++){
       resampled.column(j) = particles.column(ix[j]-1);
@@ -68,10 +69,10 @@ List bf_cpp(NumericVector y, int N, double beta, double alpha, double sigma) {
 
 // ALPHA
 
-// Sample theta proposal q(theta* | theta) In our case theta is beta. 
+// Sample theta proposal q(theta* | theta) In our case theta is alpha. 
 // [[Rcpp::export(name="param_proposal")]]
 double qalpha(double thetagiven){
-  return Rcpp::rbeta(1, 50, 50/thetagiven - 50)[0];
+  return Rcpp::rbeta(1, 100, 100/thetagiven - 100)[0]; //prviously 50
 }
 
 // Prior for theta. Evaluates prior density
@@ -91,18 +92,20 @@ double logqalphaeval(double thetastar, double thetagiven){
 // transition sigma
 // [[Rcpp::export(name="qsigma")]]
 double qsigma(double thetagiven){
-    return Rcpp::rgamma(1, 5, thetagiven/(double)5)[0];
+    return Rcpp::rgamma(1, 200, thetagiven/(double)200)[0]; //300 worked well
 }
 
+
+//UNCOMMENT THIS
 // prior sigma
+// // [[Rcpp::export(name="priorsigma")]]
+// double logpsigma(double theta){
+//   return R::dgamma(theta, 5, 0.2, true);
+// }
+
 // [[Rcpp::export(name="priorsigma")]]
 double logpsigma(double theta){
-  return R::dgamma(theta, 5, 0.2, true);
-}
-
-// [[Rcpp::export(name="priorsigmatest")]]
-double logpsigmatest(double theta, double shape, double rate){
-  return R::dgamma(theta, shape, rate, true);
+  return R::dgamma(theta, 5, 0.5/(double)5, true);
 }
 
 // evaluates transition sigma
@@ -140,6 +143,7 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
     // Sample theta* from q(theta* | theta)
     theta_candidate = qsigma(theta);
     alpha_candidate = qalpha(alpha);
+    std::cout <<"it " << i << " sigma " << theta << " candidate " << theta_candidate << " alpha" << alpha << "cand" << alpha_candidate << std::endl;
     inbound = (0.0001 < theta_candidate) && (theta_candidate != 0);
     inboundalpha = (0.0001 < alpha_candidate) && (alpha_candidate < 0.9999) && (alpha_candidate != 1);
     if (inbound && inboundalpha){
@@ -164,8 +168,10 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
   // MAIN LOOP
   for (int i=0; i < niter; i++){
     // Sample theta* from q(theta* | theta)
-    theta_candidate = qalpha(theta);
+    theta_candidate = qsigma(theta);
     alpha_candidate = qalpha(alpha);
+    std::cout <<"it " << i << " sigma " << theta << " candidate " << theta_candidate << " alpha" << alpha << "cand" << alpha_candidate << std::endl;
+    inbound = (0.0001 < theta_candidate) && (theta_candidate != 0);
     inboundalpha = (0.0001 < alpha_candidate) && (alpha_candidate < 0.9999) && (alpha_candidate != 1);
     if (inbound && inboundalpha){
       // Sample a candidate by running APF. Extract sample and log marginal
@@ -199,7 +205,8 @@ List pmmh(double thetastart, int niter, int N, NumericVector y, int burnin, doub
                             Rcpp::Named("acceptancealpha") = alphaaccepted/(double)niter,
                             Rcpp::Named("samples") = samples,
                             Rcpp::Named("alphasamples") = alphasamples,
-                            Rcpp::Named("log_marginals") = log_marginals);
+                            Rcpp::Named("log_marginals") = log_marginals,
+                            Rcpp::Named("final_states") = x);
 }
 
 
