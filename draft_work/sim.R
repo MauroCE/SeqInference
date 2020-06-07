@@ -1,7 +1,11 @@
 library(SMC)
-n <- 500
+n <- 400
+set.seed(2345623)
 dat <- stochastic_volatility(n, c(0.9, 1, 1))
-test <- pmmh2(1000, dat$y, 400, c(0.5, 0.5), 0.3)
+# test2 <- BSF(dat$y, 400, c(0.9, 1, 1))
+test <- pmmh2(10000, dat$y, 400, c(0.5, 0.5, 0.5), 0.045)
 colMeans(test)
 plot(test[,1], type = "l")
 plot(test[,2], type = "l")
+plot(test[,3], type = "l")
+acf(test[-(1:2000),3], lag.max = 200)
