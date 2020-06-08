@@ -40,3 +40,8 @@ R CMD INSTALL SMC_1.0.tar.gz
   
   * `SMC.h`/`utils.h`: Header files for functions used accross multiple files within the package.
   
+## Python
+
+* `Pyhton/smc.py` contains an object oriented implementation of the Bootstrap Particle Filter.
+
+  
