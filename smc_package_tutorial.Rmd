@@ -176,7 +176,7 @@ boundaries. This ensures proposals are only ever in pheasible regions. In this
 tutorial we will show the use of `pmmh2`:
 
 ```{r eval = F}
-pmmh2_fit <- SMC::pmmh2(10000, data$y, 400, c(0.5, 0.5, 0.5), 0.045)
+pmmh2_fit <- SMC::pmmh2(10000, data$y, 800, c(0.5, 0.5, 0.5), 0.045)
 ```
 
 This function outputs a list containing the number of accepted steps and a
