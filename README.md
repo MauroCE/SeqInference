@@ -26,5 +26,17 @@ R CMD INSTALL SMC_1.0.tar.gz
 
 * **Usage:** A brief tutorial on the `SMC` package is given in `smc_package_tutorial.pdf`/`smc_package_tutorial.Rmd`.
 
-* **Source Code:** 
-  * test
+* **Source Code:** Navigate to `SMC/src`.
+ 
+  * `APF.cpp`: Source code associated with the Auxiliary Particle Filter.
+  
+  * `BSF.cpp`: Source code associated with the Bootstrap Particle Filter.
+  
+  * `metrop1.cpp`: Particle Metropolis Hasting implementation (with **beta/gamma** priors and **beta/gamma** proposal distirbutions).
+  
+  * `metrop2.cpp`: Particle Metropolis Hasting implementation (with **truncated-Normal/gamma** prior and **reflective random walk** proposal distirbutions).
+  
+  * `utils.cpp`: Useful generic functions.
+  
+  * `SMC.h`/`utils.h`: Header files for functions used accross multiple files within the package.
+  
