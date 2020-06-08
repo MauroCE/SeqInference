@@ -1,5 +1,4 @@
 ---
-title: 'APPENDX: SMC Package Tutorial'
 output:
   pdf_document: default
   html_document:
@@ -97,7 +96,7 @@ filter_data <- data.frame(
 bsf_pl <- ggplot(data = filter_data) + 
           geom_line(aes(x = t, y = x), col = "black", size = 0.2) +
           geom_line(aes(x = t, y = bsf), col = "#1ea896", size = 0.2) +
-          labs(title = "BSF",x = "time", y = " ") +
+          labs(x = "time", y = " ") +
           theme(panel.grid = element_blank(),
                 panel.background = element_blank(),
                 text = element_text(size=10),
@@ -110,7 +109,7 @@ bsf_pl <- ggplot(data = filter_data) +
 apf_pl <- ggplot(data = filter_data) + 
           geom_line(aes(x = t, y = x), col = "black", size = 0.2) +
           geom_line(aes(x = t, y = apf), col = "#1ea896", size = 0.2) +
-          labs(title = "APF", x = "time", y = " ") +
+          labs(x = "time", y = " ") +
           theme(panel.grid = element_blank(),
                 panel.background = element_blank(),
                 text = element_text(size=10),
@@ -120,10 +119,12 @@ apf_pl <- ggplot(data = filter_data) +
                 aspect.ratio = 0.5,
                 plot.margin=grid::unit(c(0,0.3,0,0), "cm")
               )
-pdf("Figures/Tutorial/particle_fit.pdf")
-grid.arrange(bsf_pl, apf_pl, nrow = 1)
+pdf("Figures/Tutorial/bsf_fit.pdf")
+bsf_pl
+pdf("Figures/Tutorial/apf_fit.pdf")
+apf_pl
 dev.off()
-caption2 <- paste("Results of running running the BSF and APF on the synthetic", 
+caption2 <- paste("Results of running running the BSF and APF (Left/Right) on the synthetic", 
                   "data. The true states are given by the solid black line,",
                   "and the filtered states are given by the dark green line.")
 ```
@@ -178,13 +179,16 @@ tutorial we will show the use of `pmmh2`:
 pmmh2_fit <- SMC::pmmh2(10000, data$y, 400, c(0.5, 0.5, 0.5), 0.045)
 ```
 
+This function outputs a list containing the number of accepted steps and a
+matrix who's columns represent a markov chain for each parameter.
+
 ```{r include = F}
 #saveRDS(pmmh2_fit, 'Data/Tutorial/pmmh2_fit.RDS')
 pmmh2_fit <- readRDS("Data/Tutorial/pmmh2_fit.RDS")
 ```
 
 ```{r}
-acceptance_rate <- pmmh2_fit$Accepted / nrow(pmmh2_fit$chain[-(1:5000),])
+acceptance_rate <- pmmh2_fit$Accepted / nrow(pmmh2_fit$chain[-(1:2500),])
 cat("Acceptance rate: ", acceptance_rate * 100, "%", sep = "")
 ```
 
@@ -192,12 +196,12 @@ The acceptance rate should ideally be around 23.4%. Let's examine the trace
 plots:
 
 ```{r include = F}
-tr_plot <- function(chains, i, pname) {
+colours <- c("#264653","#e76f51","#B17D00")
+tr_plot <- function(chains, i, colours) {
   df <- data.frame("t" = 1:nrow(chains), "y" = chains[,i])
   pl <- ggplot(data = df) +
-        geom_line(aes(x = t, y = y), color = "#264653", size = 0.4) +
+        geom_line(aes(x = t, y = y), color = colours[i], size = 0.4) +
         geom_hline(yintercept = theta[i],linetype = 'dashed', size = 0.4)+
-        labs(y = pname) +
         theme(panel.grid = element_blank(),
               panel.background = element_blank(),
               text = element_text(size=10),
@@ -209,9 +213,9 @@ tr_plot <- function(chains, i, pname) {
               )
   return(pl)
 }
-alpha_pl <- tr_plot(pmmh2_fit$chain, 1, "alpha")
-beta_pl <- tr_plot(pmmh2_fit$chain, 2, "beta")
-sigma_pl <- tr_plot(pmmh2_fit$chain, 3, "sigma")
+alpha_pl <- tr_plot(pmmh2_fit$chain, 1, colours)
+beta_pl <- tr_plot(pmmh2_fit$chain, 2, colours)
+sigma_pl <- tr_plot(pmmh2_fit$chain, 3, colours)
 
 pdf("Figures/Tutorial/alpha_trace.pdf")
 alpha_pl
@@ -220,7 +224,7 @@ beta_pl
 pdf("Figures/Tutorial/sigma_trace.pdf")
 sigma_pl
 dev.off()
-caption3 <- "Trace plots for each model parameter; generated using pmmh2()."
+caption3 <- "Trace plots for each model parameter (alpha/beta/sigma resp.); generated using pmmh2()."
 ```
 
 ```{r, echo = F, fig.cap=caption3}
@@ -232,14 +236,15 @@ grid.arrange(
 )
 ```
 
-The trace plots indicate that each parameters has converged to its stationary
-regime. The ACF plots should also decay to $0$ (here we take a burn in of $500$
-iterations).
+For $\alpha$ and $\sigma$, the traceplots in Figure 3 indicate that the chain has 
+converged to its sationary regime. Another method of assessing convergence is 
+through the ACF plots, which should also decay to $0$. Figure 4 shows the ACF 
+plots for each parameter after taking a burn in of $2500$ iterations.
 
 ```{r include = F}
-burn_in <- 5000
+burn_in <- 2500
 chain <- pmmh2_fit$chain[-(1:burn_in),]
-ggplot.corr <- function(data, pname, lag.max = 100, ci = 0.95, large.sample.size = TRUE, horizontal = TRUE,...) {
+ggplot.corr <- function(data, colour, lag.max = 100, ci = 0.95, large.sample.size = TRUE, horizontal = TRUE,...) {
   
   if(horizontal == TRUE) {numofrow <- 1} else {numofrow <- 2}
   
@@ -257,7 +262,7 @@ ggplot.corr <- function(data, pname, lag.max = 100, ci = 0.95, large.sample.size
   df2 <- data.frame(lag = list.pacf$lag,pacf = list.pacf$acf)
   df2$pacfstd <- sqrt(1/N)
     plot.acf <- ggplot(data = df1, aes( x = lag, y = acf)) +
-    geom_col(color="#264653", width = 0.01) +
+    geom_col(color=colour, width = 0.01) +
     geom_hline(yintercept = qnorm((1+ci)/2)/sqrt(N), 
                colour = "black",
                linetype = "dashed",
@@ -276,13 +281,12 @@ ggplot.corr <- function(data, pname, lag.max = 100, ci = 0.95, large.sample.size
         axis.text = element_text(colour = "black"),
         aspect.ratio = 0.5,
         plot.margin=grid::unit(c(0,0.3,0,0), "cm")
-        ) + 
-    ggtitle(pname)
+        ) 
   plot.acf
 }
-acf_alpha <- ggplot.corr(chain[,1], "alpha", lag.max = 200, large.sample.size = FALSE)
-acf_beta <- ggplot.corr(chain[,2], "beta", lag.max = 200, large.sample.size = FALSE)
-acf_sigma <- ggplot.corr(chain[,3], "sigma", lag.max = 200, large.sample.size = FALSE)
+acf_alpha <- ggplot.corr(chain[,1], colours[1], lag.max = 200, large.sample.size = FALSE)
+acf_beta <- ggplot.corr(chain[,2], colours[2], lag.max = 200, large.sample.size = FALSE)
+acf_sigma <- ggplot.corr(chain[,3], colours[3], lag.max = 200, large.sample.size = FALSE)
 
 pdf("Figures/Tutorial/acf_alpha.pdf")
 acf_alpha
@@ -291,7 +295,7 @@ acf_beta
 pdf("Figures/Tutorial/acf_sigma.pdf")
 acf_sigma
 dev.off()
-caption4 <- "ACF plots for each model parameter; generated using pmmh2()."
+caption4 <- "ACF plots for each model parameter (alpha/beta/sigma resp.); generated using pmmh2()."
 ```
 
 ```{r, echo = F, fig.cap=caption4}
@@ -303,7 +307,11 @@ grid.arrange(
 )
 ```
 
-And finally we can plot a histogram of the approximated posterior samples:
+By lag 100, both $\alpha$ and $\sigma$'s ACF appear to have decayed sufficiently.
+However, $\beta$'s ACF plot suggestes that there is still a large level of 
+correlation between values by lag 200. As a result, one might consider running
+the chain for longer. Finally, Figure 5 gives the histograms of the approximated
+posterior distributions, which are all roughly centred on the correct values.
 
 ```{r include=F}
 param = theta
@@ -340,7 +348,7 @@ beta_posterior <- ggplot(data = samples)+
         ) 
 
 sigma_posterior <- ggplot(data = samples)+
-  geom_histogram(aes(sigma), bins=50, color = "#e76f51", fill="#e76f51",size = 0.4,alpha=0.4)+
+  geom_histogram(aes(sigma), bins=50, color = "#B17D00", fill="#B17D00",size = 0.4,alpha=0.4)+
   geom_vline(xintercept = param[3],linetype = 'dashed',size = 0.4)+
   labs(x = expression(sigma),y="")+
   scale_x_continuous(limits=c(0.5,2.5),breaks=c(seq(0.5,2.5,by=0.25),param[3]),labels=c(seq(0.5,2.5,by=0.25),param[3]))+
@@ -352,7 +360,7 @@ sigma_posterior <- ggplot(data = samples)+
         axis.text = element_text(colour = "black"),
         aspect.ratio = 0.5,
         plot.margin=grid::unit(c(0,0.3,0,0), "cm")
-        ) 
+        )
 ```
 
 ```{r include = F}
@@ -362,13 +370,17 @@ pdf("Figures/Tutorial/posterior_beta.pdf")
 beta_posterior
 pdf("Figures/Tutorial/posterior_sigma.pdf")
 sigma_posterior
+caption5 <- "Sample histograms for each model parameter (alpha/beta/sigma resp.); generated using pmmh2()."
+
 ```
 
-```{r echo=F}
+```{r echo=F, fig.cap=caption5}
+suppressWarnings(
 grid.arrange(
   alpha_posterior,
   beta_posterior,
   sigma_posterior,
   nrow = 1
+)
 )
 ```
