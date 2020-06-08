@@ -36,7 +36,7 @@ generating synthetic data from the associated SVM.
 
 ```{r}
 theta <- c(0.91, 1, 1)
-tmax <- 500
+tmax <- 1000
 set.seed(1234)
 data <- SMC::stochastic_volatility(tmax, theta)
 head(data)
@@ -184,7 +184,7 @@ pmmh2_fit <- readRDS("Data/Tutorial/pmmh2_fit.RDS")
 ```
 
 ```{r}
-acceptance_rate <- pmmh2_fit$Accepted / nrow(pmmh2_fit$chain)
+acceptance_rate <- pmmh2_fit$Accepted / nrow(pmmh2_fit$chain[-(1:5000),])
 cat("Acceptance rate: ", acceptance_rate * 100, "%", sep = "")
 ```
 
@@ -327,7 +327,7 @@ alpha_posterior <- ggplot(data = samples)+
 beta_posterior <- ggplot(data = samples)+
   geom_histogram(aes(beta), bins=50, color = "#e76f51", fill="#e76f51",size = 0.4,alpha=0.4)+
   geom_vline(xintercept = param[2],linetype = 'dashed',size = 0.4)+
-  labs(x = expression(sigma),y="")+
+  labs(x = expression(beta),y="")+
   scale_x_continuous(limits=c(0.5,2.5),breaks=c(seq(0.5,2.5,by=0.25),param[3]),labels=c(seq(0.5,2.5,by=0.25),param[3]))+
   theme(panel.grid = element_blank(),
         panel.background = element_blank(),
@@ -342,7 +342,7 @@ beta_posterior <- ggplot(data = samples)+
 sigma_posterior <- ggplot(data = samples)+
   geom_histogram(aes(sigma), bins=50, color = "#e76f51", fill="#e76f51",size = 0.4,alpha=0.4)+
   geom_vline(xintercept = param[3],linetype = 'dashed',size = 0.4)+
-  labs(x = expression(beta),y="")+
+  labs(x = expression(sigma),y="")+
   scale_x_continuous(limits=c(0.5,2.5),breaks=c(seq(0.5,2.5,by=0.25),param[3]),labels=c(seq(0.5,2.5,by=0.25),param[3]))+
   theme(panel.grid = element_blank(),
         panel.background = element_blank(),
