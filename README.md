@@ -44,4 +44,11 @@ R CMD INSTALL SMC_1.0.tar.gz
 
 * `Pyhton/smc.py` contains an object oriented implementation of the Bootstrap Particle Filter.
 
+## C++
+
+ * `Cpp/bf_cpp_alpha.cpp` Source code of an Rcpp Bootstrap Filter with **beta** prior/transition for alpha, and **gamma** prior/transition for sigma. It also contains an implementation of `pmmh` in the log scale.
+ 
+# Dirac Delta Appendix and Importance Sampling Plots
+ * `DiracDelta_and_ImportanceSampling.Rmd` contains code to reproduce plots used in the appendix about Dirac Delta and to explain importance sampling.
+
   
