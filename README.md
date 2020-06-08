@@ -24,4 +24,7 @@ directly obtained as a by-product of the algorithm.
 R CMD INSTALL SMC_1.0.tar.gz
 ```
 
-* **Usage:** 
+* **Usage:** A brief tutorial on the `SMC` package is given in `smc_package_tutorial.pdf`/`smc_package_tutorial.Rmd`.
+
+* **Source Code:** 
+  * test
