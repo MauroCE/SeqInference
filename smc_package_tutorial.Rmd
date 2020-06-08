@@ -48,9 +48,10 @@ data_pl <- ggplot(data = cbind("t" = 1:tmax, data)) +
            labs(x = "time", y = " ") +
            theme(panel.grid = element_blank(),
                  panel.background = element_blank(),
-                 text = element_text(size=10),
+                 text = element_text(size=8),
                  axis.line=element_line(size = 0.3),
                  axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+                 axis.text.x = element_text(),
                  axis.text = element_text(colour = "black"),
                  aspect.ratio = 0.5,
                  plot.margin=grid::unit(c(0,0.3,0,0), "cm"),
@@ -121,8 +122,10 @@ apf_pl <- ggplot(data = filter_data) +
               )
 pdf("Figures/Tutorial/bsf_fit.pdf")
 bsf_pl
+ggsave('Figures/Tutorial/bsf_pl.png',plot=bsf_pl,height = 5, width=8,units = "cm")
 pdf("Figures/Tutorial/apf_fit.pdf")
 apf_pl
+ggsave('Figures/Tutorial/apf_pl.png',plot=apf_pl,height = 5, width=8,units = "cm")
 dev.off()
 caption2 <- paste("Results of running running the BSF and APF (Left/Right) on the synthetic", 
                   "data. The true states are given by the solid black line,",
@@ -151,8 +154,8 @@ There are two versions of PMMH algorithm implemented within the `SMC` package.
 The first, `pmmh1`, estimates parameters $\alpha$ and $\sigma$ **only**, using 
 the prior/proposal
 \begin{equation}
-p(\alpha) = \text{Beta}(6, \frac{6}{0.8} - 6), \quad q(\alpha^*|\alpha) = 
-\text{Beta}(100, \frac{100}{\alpha} - 100)
+p(\alpha) = \text{Beta}\left((6, \frac{6}{0.8} - 6\right), \quad q(\alpha^*|\alpha) = 
+\text{Beta}\left(100, \frac{100}{\alpha} - 100\right)
 \end{equation}
 \begin{equation}
 p(\sigma) = \text{Gamma}(5, \frac{0.5}{5}), \quad q(\sigma^*|\sigma) = 
@@ -172,7 +175,7 @@ q(\theta^* | \theta) = \mathcal{N}(\theta, \sigma_{\text{prop}} \boldsymbol{I}).
 \end{equation}
 Since all of the parameters are bounded ($\sigma$ and $\beta$ must be positive; 
 $\|\alpha\| < 1$), we have applied reflection at each of their respective
-boundaries. This ensures proposals are only ever in pheasible regions. In this
+boundaries. This ensures proposals are only ever in feasible regions. In this
 tutorial we will show the use of `pmmh2`:
 
 ```{r eval = F}
@@ -180,7 +183,7 @@ pmmh2_fit <- SMC::pmmh2(10000, data$y, 800, c(0.5, 0.5, 0.5), 0.045)
 ```
 
 This function outputs a list containing the number of accepted steps and a
-matrix who's columns represent a markov chain for each parameter.
+matrix whose columns represent a markov chain for each parameter.
 
 ```{r include = F}
 #saveRDS(pmmh2_fit, 'Data/Tutorial/pmmh2_fit.RDS')
@@ -197,25 +200,26 @@ plots:
 
 ```{r include = F}
 colours <- c("#264653","#e76f51","#B17D00")
-tr_plot <- function(chains, i, colours) {
+tr_plot <- function(chains, i, colours, variable) {
   df <- data.frame("t" = 1:nrow(chains), "y" = chains[,i])
   pl <- ggplot(data = df) +
         geom_line(aes(x = t, y = y), color = colours[i], size = 0.4) +
         geom_hline(yintercept = theta[i],linetype = 'dashed', size = 0.4)+
+        ylab('')+
         theme(panel.grid = element_blank(),
               panel.background = element_blank(),
-              text = element_text(size=10),
+              text = element_text(size=8),
               axis.line=element_line(size = 0.3),
               axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
-              axis.text = element_text(colour = "black"),
+              axis.text = element_text(colour = "black", size=8),
               aspect.ratio = 0.5,
               plot.margin=grid::unit(c(0,0.3,0,0), "cm")
               )
   return(pl)
 }
-alpha_pl <- tr_plot(pmmh2_fit$chain, 1, colours)
-beta_pl <- tr_plot(pmmh2_fit$chain, 2, colours)
-sigma_pl <- tr_plot(pmmh2_fit$chain, 3, colours)
+alpha_pl <- tr_plot(pmmh2_fit$chain, 1, colours, variable=alpha)
+sigma_pl <- tr_plot(pmmh2_fit$chain, 2, colours, sigma)
+beta_pl <- tr_plot(pmmh2_fit$chain, 3, colours, beta)
 
 pdf("Figures/Tutorial/alpha_trace.pdf")
 alpha_pl
@@ -224,7 +228,7 @@ beta_pl
 pdf("Figures/Tutorial/sigma_trace.pdf")
 sigma_pl
 dev.off()
-caption3 <- "Trace plots for each model parameter (alpha/beta/sigma resp.); generated using pmmh2()."
+caption3 <- "Trace plots for each model parameter (alpha/beta/sigma resp.) generated using pmmh2()."
 ```
 
 ```{r, echo = F, fig.cap=caption3}
@@ -275,7 +279,7 @@ ggplot.corr <- function(data, colour, lag.max = 100, ci = 0.95, large.sample.siz
                        limits = c(min(df1$acf,df2$pacf),1)) +
     theme(panel.grid = element_blank(),
         panel.background = element_blank(),
-        text = element_text(size=10),
+        text = element_text(size=8),
         axis.line=element_line(size = 0.3),
         axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
         axis.text = element_text(colour = "black"),
@@ -285,8 +289,8 @@ ggplot.corr <- function(data, colour, lag.max = 100, ci = 0.95, large.sample.siz
   plot.acf
 }
 acf_alpha <- ggplot.corr(chain[,1], colours[1], lag.max = 200, large.sample.size = FALSE)
-acf_beta <- ggplot.corr(chain[,2], colours[2], lag.max = 200, large.sample.size = FALSE)
-acf_sigma <- ggplot.corr(chain[,3], colours[3], lag.max = 200, large.sample.size = FALSE)
+acf_sigma <- ggplot.corr(chain[,3], colours[2], lag.max = 200, large.sample.size = FALSE)
+acf_beta <- ggplot.corr(chain[,2], colours[3], lag.max = 200, large.sample.size = FALSE)
 
 pdf("Figures/Tutorial/acf_alpha.pdf")
 acf_alpha
@@ -295,7 +299,7 @@ acf_beta
 pdf("Figures/Tutorial/acf_sigma.pdf")
 acf_sigma
 dev.off()
-caption4 <- "ACF plots for each model parameter (alpha/beta/sigma resp.); generated using pmmh2()."
+caption4 <- "ACF plots for each model parameter (alpha/beta/sigma resp.) generated using pmmh2()."
 ```
 
 ```{r, echo = F, fig.cap=caption4}
@@ -327,13 +331,13 @@ alpha_posterior <- ggplot(data = samples)+
         text = element_text(size=10),
         axis.line=element_line(size = 0.3),
         axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
-        axis.text = element_text(colour = "black"),
+        axis.text = element_text(colour = "black",size=8),
         aspect.ratio = 0.5,
         plot.margin=grid::unit(c(0,0.3,0,0), "cm")
         ) 
 
 beta_posterior <- ggplot(data = samples)+
-  geom_histogram(aes(beta), bins=50, color = "#e76f51", fill="#e76f51",size = 0.4,alpha=0.4)+
+  geom_histogram(aes(beta), bins=50,color = "#B17D00", fill="#B17D00",size = 0.4,alpha=0.4)+
   geom_vline(xintercept = param[2],linetype = 'dashed',size = 0.4)+
   labs(x = expression(beta),y="")+
   scale_x_continuous(limits=c(0.5,2.5),breaks=c(seq(0.5,2.5,by=0.25),param[3]),labels=c(seq(0.5,2.5,by=0.25),param[3]))+
@@ -342,13 +346,13 @@ beta_posterior <- ggplot(data = samples)+
         text = element_text(size=10),
         axis.line=element_line(size = 0.3),
         axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
-        axis.text = element_text(colour = "black"),
+        axis.text = element_text(colour = "black",size=8),
         aspect.ratio = 0.5,
         plot.margin=grid::unit(c(0,0.3,0,0), "cm")
         ) 
 
 sigma_posterior <- ggplot(data = samples)+
-  geom_histogram(aes(sigma), bins=50, color = "#B17D00", fill="#B17D00",size = 0.4,alpha=0.4)+
+  geom_histogram(aes(sigma), bins=50,color = "#e76f51", fill="#e76f51",size = 0.4,alpha=0.4)+
   geom_vline(xintercept = param[3],linetype = 'dashed',size = 0.4)+
   labs(x = expression(sigma),y="")+
   scale_x_continuous(limits=c(0.5,2.5),breaks=c(seq(0.5,2.5,by=0.25),param[3]),labels=c(seq(0.5,2.5,by=0.25),param[3]))+
@@ -357,7 +361,7 @@ sigma_posterior <- ggplot(data = samples)+
         text = element_text(size=10),
         axis.line=element_line(size = 0.3),
         axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
-        axis.text = element_text(colour = "black"),
+        axis.text = element_text(colour = "black",size=8),
         aspect.ratio = 0.5,
         plot.margin=grid::unit(c(0,0.3,0,0), "cm")
         )

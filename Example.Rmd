@@ -79,6 +79,56 @@ ggplot(data = df)+
 # ggsave("Figures/true_x_y.png",height = 5, width=8,units = "cm")
 ```
 
+## State estimation using the real parameters
+
+APF
+```{r}
+bf_result <- SMC::BSF(y,N, param)
+#apf_state_estimates <- apf_result$states[-1]
+data.frame(state = 1:length(bf_result$states[-1])[1],
+                 state_estimate=bf_result$states[-1],
+                 real_state = data[-1,1]) %>% 
+  ggplot()+
+    geom_line(aes(x=state,y=state_estimate), color = '#1ea896', size=0.4)+
+    geom_line(aes(x=state,y=real_state), size=0.4)+
+    labs(x="time",y="state")+
+    theme(panel.grid = element_blank(),
+          panel.background = element_blank(),
+          text = element_text(family="LM Roman 10", size=10),
+          axis.line=element_line(size = 0.3),
+          axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+          axis.text = element_text(colour = "black"),
+          aspect.ratio = 0.5,
+          plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+          ) 
+```
+
+APF
+```{r}
+bf_result <- SMC::BSF(y,N, param)
+apf_result <- SMC::APF(y, N, param)
+#apf_state_estimates <- apf_result$states[-1]
+data.frame(state = 1:length(apf_result$states[-1])[1],
+                state_estimate_bf=bf_result$states[-1],
+                 state_estimate_apf=apf_result$states[-1],
+                 real_state = data[-1,1]) %>% 
+  ggplot()+
+    geom_line(aes(x=state,y=state_estimate_bf), color = '#1ea896', size=0.4)+
+    geom_line(aes(x=state,y=state_estimate_apf), color = '#ee6c4d', size=0.4)+
+    geom_line(aes(x=state,y=real_state), size=0.4)+
+    labs(x="time",y="state")+
+    theme(panel.grid = element_blank(),
+          panel.background = element_blank(),
+          text = element_text(family="LM Roman 10", size=10),
+          axis.line=element_line(size = 0.3),
+          axis.title.y = element_text(angle=90, vjust=0.5, hjust=0.5),
+          axis.text = element_text(colour = "black"),
+          aspect.ratio = 0.5,
+          plot.margin=grid::unit(c(0,0.3,0,0), "cm")
+          ) 
+```
+
+
 Compute the mean of the parameter estimates from iteration $200$ to $800$.
 ```{r}
 # sigma
